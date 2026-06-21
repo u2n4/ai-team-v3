@@ -1,0 +1,48 @@
+# ── Dependencies ────────────────────────────────
+node_modules/
+
+# ── Build / packaging output ────────────────────
+dist/
+out/
+release/
+# Note: build/ holds electron-builder RESOURCES (app icon), not output — keep it tracked.
+
+# ── Logs ────────────────────────────────────────
+*.log
+
+# ── Test temp dir (project-local mkdtemp root) ──
+.tmp/
+
+# ── 🔴 Captured live-provider run artifacts (NEVER publish) ──
+# traces/ holds real qwen/kimi live-run captures (account/url/usage data).
+traces/
+
+# ── Graphify analysis output (generated, never publish) ──
+graphify-out/
+.graphify_*.json
+
+# ── Generated local report viewer ───────────────
+docs/V3_TRACE_REPORT_VIEWER.html
+
+# ── Live-run report artifacts (generated locally, never publish) ──
+docs/ONE_PROVIDER_REPORT.md
+docs/LIVE_PREP_3_SELECTOR_VERIFICATION.md
+docs/LIVE_ENDURANCE_30_REPORT.md
+
+# ── Secrets / credentials (defense in depth) ────
+.env
+.env.*
+config/secrets.js
+*.pem
+*cookies*.json
+*credentials*.json
+
+# ── Local prompt / scratch notes (not part of the product) ──
+برومت.md
+*.prompt.md
+
+# ── OS / IDE ────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,90 @@
+{
+  "name": "@ai-team/v3",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Clean AI Team V3 architecture with fake-first provider safety gates.",
+  "author": "U2N4",
+  "main": "src/electron/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "test:v3-smoke": "node tests/core/smoke.test.js",
+    "test:v3-core": "node tests/core/core-invariants.test.js",
+    "test:v3-budget": "node tests/core/budget-guard.test.js",
+    "test:v3-delta": "node tests/core/delta-context.test.js",
+    "test:v3-firewall": "node tests/providers/transcript-firewall.test.js",
+    "test:v3-quota": "node tests/core/quota-guard.test.js",
+    "test:v3-failure": "node tests/integration/failure-isolation.test.js",
+    "test:v3-all": "node tests/run-all.js",
+    "postinstall": "node scripts/postinstall-electron.js",
+    "fix:electron": "node scripts/postinstall-electron.js",
+    "app": "electron .",
+    "smoke:core": "node scripts/smoke-core.js",
+    "smoke:fake-room": "node scripts/smoke-fake-room.js",
+    "smoke:two-provider": "node scripts/smoke-provider-ladder.js two",
+    "smoke:three-provider": "node scripts/smoke-provider-ladder.js three",
+    "smoke:multi-provider": "node scripts/smoke-provider-ladder.js all",
+    "smoke:one-provider": "node scripts/smoke-one-provider.js",
+    "doctor:provider": "electron scripts/doctor-provider.js",
+    "health:check": "node scripts/health-check.js",
+    "import:edge-cookies": "electron scripts/import-edge-cookies.js",
+    "report:viewer": "node scripts/generate-report-viewer.js",
+    "endurance:30": "node scripts/endurance-30-real-discussion.js",
+    "modes:test": "node scripts/test-all-modes.js",
+    "chaos:test": "node scripts/chaos-validation.js",
+    "stress:suite": "node scripts/stress-suite.js",
+    "validate:offline-real": "node scripts/validate-offline-real.js",
+    "benchmark": "node scripts/benchmark.js",
+    "live:ladder-plan": "node scripts/live-mode-validation.js",
+    "live:endurance:30": "node scripts/live-endurance-30.js",
+    "live:discussion": "electron scripts/live-discussion.js",
+    "login": "electron scripts/manual-login.js",
+    "vault:secure": "electron scripts/secure-local-vault.js",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win nsis",
+    "dist:dir": "electron-builder --dir",
+    "pack": "electron-builder --dir"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "devDependencies": {
+    "electron": "^42.3.0",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.u2n4.aiteamv3",
+    "productName": "AI Team V3",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "config/**/*",
+      "!**/*.test.js",
+      "!traces/**/*",
+      "!.tmp/**/*",
+      "!docs/**/*",
+      "!tests/**/*"
+    ],
+    "win": {
+      "icon": "build/icon-source.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "AI-Team-V3-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AI Team V3"
+    }
+  }
+}

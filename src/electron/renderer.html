@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI Team V3 Dashboard</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f1214;
+        --panel: #171b1f;
+        --panel-2: #1d2429;
+        --ink: #eef2f1;
+        --muted: #9aa7a5;
+        --line: #2b3439;
+        --green: #83d6b2;
+        --amber: #e4c66f;
+        --red: #e88f83;
+        --blue: #8ab9df;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-width: 1040px;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Aptos", "Segoe UI", sans-serif;
+        letter-spacing: 0;
+      }
+      button, input, select { font: inherit; }
+      .shell {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        min-height: 100vh;
+      }
+      aside {
+        border-right: 1px solid var(--line);
+        padding: 22px;
+        background: #121619;
+      }
+      main { padding: 24px; }
+      h1, h2, h3, p { margin-top: 0; }
+      h1 { font-size: 26px; margin-bottom: 8px; }
+      h2 { font-size: 14px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+      h3 { font-size: 16px; margin-bottom: 8px; }
+      .muted { color: var(--muted); }
+      .grid { display: grid; gap: 14px; }
+      .top-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 18px; }
+      .main-grid { grid-template-columns: 1.1fr 0.9fr; align-items: start; }
+      .panel, .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 14px;
+      }
+      .stat strong { display: block; font-size: 18px; margin-top: 8px; }
+      .status {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 2px 8px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--ink);
+        background: var(--panel-2);
+        font-size: 12px;
+      }
+      .ok { color: var(--green); }
+      .warn { color: var(--amber); }
+      .bad { color: var(--red); }
+      .blue { color: var(--blue); }
+      .provider-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .provider-card { min-height: 172px; }
+      .kv { display: grid; grid-template-columns: 132px 1fr; gap: 6px 10px; font-size: 12px; color: var(--muted); }
+      .kv span:nth-child(even) { color: var(--ink); overflow-wrap: anywhere; }
+      .table { width: 100%; border-collapse: collapse; }
+      .table th, .table td {
+        border-bottom: 1px solid var(--line);
+        padding: 9px 8px;
+        text-align: left;
+        font-size: 12px;
+        vertical-align: top;
+      }
+      .table th { color: var(--muted); font-weight: 700; }
+      pre {
+        margin: 0;
+        max-height: 220px;
+        overflow: auto;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        color: var(--muted);
+        background: #0d1012;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+      }
+      .command {
+        font-family: "Cascadia Mono", Consolas, monospace;
+        color: var(--green);
+        background: #0d1513;
+        border: 1px solid #24463a;
+        border-radius: 8px;
+        padding: 10px;
+        overflow-wrap: anywhere;
+      }
+      .blocked-button {
+        width: 100%;
+        min-height: 36px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        color: var(--muted);
+        background: #15191c;
+        cursor: not-allowed;
+      }
+      /* Conversation: answers vs the AI's thinking, visually distinct so there's no mixup. */
+      .conv-turn { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+      .conv-ai { background: var(--panel-2); }
+      .conv-user { background: #15191c; }
+      .conv-who { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+      .conv-answer { font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+      .conv-reasoning { margin-top: 8px; border-left: 3px solid #6b5bd2; background: #1a1726; border-radius: 4px; padding: 4px 8px; }
+      .conv-reasoning summary { cursor: pointer; font-size: 12px; color: #b9aef2; user-select: none; }
+      .conv-reasoning-body { margin-top: 6px; font-size: 12px; line-height: 1.5; color: #c8c0e8; white-space: pre-wrap; font-style: italic; }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="shell">
+      <aside>
+        <h1>AI Team V3</h1>
+        <p class="muted">Loading local dashboard...</p>
+      </aside>
+      <main></main>
+    </div>
+    <script src="./renderer.js"></script>
+  </body>
+</html>

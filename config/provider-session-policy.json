@@ -1,0 +1,77 @@
+{
+  "reuseV2Sessions": true,
+  "allowedReuseProviders": ["qwen", "kimi"],
+  "forbiddenLiveProviders": ["chatgpt", "claude"],
+  "requireHumanConfirmationForLiveSend": true,
+  "doNotCopyCookies": true,
+  "doNotLogSecrets": true,
+  "v2SharedPartition": "persist:ai-team-shared",
+  "providerPolicies": {
+    "qwen": {
+      "liveAllowed": true,
+      "v2SessionReuseAllowed": true,
+      "partition": "persist:ai-team-shared",
+      "humanApprovalRequired": true
+    },
+    "kimi": {
+      "liveAllowed": true,
+      "v2SessionReuseAllowed": true,
+      "partition": "persist:ai-team-shared",
+      "humanApprovalRequired": true
+    },
+    "deepseek": {
+      "liveAllowed": true,
+      "v2SessionReuseAllowed": false,
+      "partition": "persist:ai-team-v3-deepseek",
+      "humanApprovalRequired": true
+    },
+    "perplexity": {
+      "liveAllowed": true,
+      "v2SessionReuseAllowed": false,
+      "partition": "persist:ai-team-v3-perplexity",
+      "humanApprovalRequired": true
+    },
+    "gemini": {
+      "liveAllowed": true,
+      "v2SessionReuseAllowed": false,
+      "partition": "persist:ai-team-v3-gemini",
+      "humanApprovalRequired": true
+    },
+    "grok": {
+      "liveAllowed": true,
+      "v2SessionReuseAllowed": false,
+      "partition": "persist:ai-team-v3-grok",
+      "humanApprovalRequired": true
+    },
+    "zai": {
+      "liveAllowed": true,
+      "v2SessionReuseAllowed": false,
+      "partition": "persist:ai-team-v3-zai",
+      "humanApprovalRequired": true
+    },
+    "meta": {
+      "liveAllowed": true,
+      "v2SessionReuseAllowed": false,
+      "partition": "persist:ai-team-v3-meta",
+      "humanApprovalRequired": true
+    },
+    "manus": {
+      "liveAllowed": true,
+      "v2SessionReuseAllowed": false,
+      "partition": "persist:ai-team-v3-manus",
+      "humanApprovalRequired": true
+    },
+    "chatgpt": {
+      "liveAllowed": false,
+      "v2SessionReuseAllowed": false,
+      "partition": null,
+      "humanApprovalRequired": true
+    },
+    "claude": {
+      "liveAllowed": false,
+      "v2SessionReuseAllowed": false,
+      "partition": null,
+      "humanApprovalRequired": true
+    }
+  }
+}
