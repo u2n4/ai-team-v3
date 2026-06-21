@@ -117,6 +117,128 @@ function renderConversation(conversation) {
   return panel;
 }
 
+// Live discussion panel: pick AIs, type a question, set rounds, press Start, then watch
+// each AI's answer (and its separate 🧠 thinking) stream in live as the debate runs.
+function renderDiscussionPanel(state) {
+  const panel = el('section', 'panel discussion-panel');
+  panel.appendChild(el('h2', '', 'Start a live discussion'));
+  panel.appendChild(el('p', 'muted', 'The AIs see each other’s answers each round and converge. Each answer shows with its own thinking block.'));
+
+  const controls = el('div', 'disc-controls');
+  const prompt = el('textarea', 'disc-prompt');
+  prompt.placeholder = 'Ask the team something hard… (e.g. What is the best thing to invest my money in?)';
+  prompt.rows = 2;
+  controls.appendChild(prompt);
+
+  // Provider checkboxes — only live-eligible providers; default the reliable ones on.
+  const RELIABLE = new Set(['gemini', 'grok', 'qwen', 'kimi', 'deepseek']);
+  const picks = el('div', 'disc-picks');
+  const checkboxes = [];
+  for (const provider of state.providers) {
+    if (!provider.liveEnabled) continue;
+    const label = el('label', 'disc-pick');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = provider.id;
+    cb.checked = RELIABLE.has(provider.id);
+    label.appendChild(cb);
+    label.appendChild(el('span', '', provider.name));
+    picks.appendChild(label);
+    checkboxes.push(cb);
+  }
+  controls.appendChild(picks);
+
+  const row = el('div', 'disc-row');
+  const roundsWrap = el('label', 'disc-rounds');
+  roundsWrap.appendChild(el('span', 'muted', 'Rounds'));
+  const rounds = document.createElement('input');
+  rounds.type = 'number';
+  rounds.min = '1';
+  rounds.max = '20';
+  rounds.value = '3';
+  roundsWrap.appendChild(rounds);
+  row.appendChild(roundsWrap);
+
+  const startBtn = el('button', 'disc-start', 'Start discussion');
+  startBtn.type = 'button';
+  row.appendChild(startBtn);
+  const statusLine = el('span', 'disc-status muted', 'Idle.');
+  row.appendChild(statusLine);
+  controls.appendChild(row);
+  panel.appendChild(controls);
+
+  const live = el('div', 'disc-live');
+  live.appendChild(el('p', 'muted', 'Conversation will appear here.'));
+  panel.appendChild(live);
+
+  let unsubscribers = [];
+  const cleanup = () => { unsubscribers.forEach((u) => { try { u(); } catch (_e) {} }); unsubscribers = []; };
+
+  function appendTurn(turn) {
+    if (live.firstChild && live.firstChild.classList && live.firstChild.classList.contains('muted')) {
+      live.innerHTML = '';
+    }
+    const t = el('div', 'conv-turn conv-ai');
+    t.appendChild(el('span', 'conv-who', turn.providerName || turn.providerId));
+    t.appendChild(el('div', 'conv-answer', turn.answer));
+    if (turn.reasoning && turn.reasoning.trim()) {
+      const details = el('details', 'conv-reasoning');
+      details.appendChild(el('summary', '', '🧠 What ' + (turn.providerName || turn.providerId) + ' is thinking'));
+      details.appendChild(el('div', 'conv-reasoning-body', turn.reasoning));
+      t.appendChild(details);
+    }
+    live.appendChild(t);
+    live.scrollTop = live.scrollHeight;
+  }
+
+  startBtn.addEventListener('click', async () => {
+    if (!window.aiTeamV3 || !window.aiTeamV3.startDiscussion) {
+      statusLine.textContent = 'Discussion bridge unavailable.';
+      return;
+    }
+    const roster = checkboxes.filter((c) => c.checked).map((c) => c.value);
+    const promptText = prompt.value.trim();
+    if (!promptText) { statusLine.textContent = 'Type a question first.'; return; }
+    if (roster.length < 2) { statusLine.textContent = 'Pick at least two AIs.'; return; }
+
+    cleanup();
+    live.innerHTML = '';
+    live.appendChild(el('p', 'muted', 'Opening providers…'));
+    startBtn.disabled = true;
+    statusLine.textContent = 'Running…';
+
+    unsubscribers.push(window.aiTeamV3.onDiscussionEvent('discussion:status', (p) => {
+      statusLine.textContent = p.joined ? `joined ${p.providerId}` : `skipped ${p.providerId} (${p.reason})`;
+    }));
+    unsubscribers.push(window.aiTeamV3.onDiscussionEvent('discussion:turn', appendTurn));
+    unsubscribers.push(window.aiTeamV3.onDiscussionEvent('discussion:done', (p) => {
+      statusLine.textContent = `Done — ${p.turns} turns over ${p.rounds} rounds (${p.providers} AIs).`;
+      startBtn.disabled = false;
+      cleanup();
+    }));
+
+    try {
+      const result = await window.aiTeamV3.startDiscussion({
+        prompt: promptText,
+        roster,
+        rounds: Number(rounds.value) || 3,
+        approval: { confirmed: true }
+      });
+      if (!result || result.ok === false) {
+        statusLine.textContent = `Could not start: ${(result && (result.message || result.code)) || 'unknown error'}`;
+        startBtn.disabled = false;
+        cleanup();
+      }
+    } catch (err) {
+      statusLine.textContent = 'Start failed.';
+      startBtn.disabled = false;
+      cleanup();
+    }
+  });
+
+  return panel;
+}
+
 function renderDashboard(state) {
   const root = document.getElementById('app');
   root.innerHTML = '';
@@ -146,6 +268,9 @@ function renderDashboard(state) {
     providers.appendChild(renderProviderCard(provider));
   }
   main.appendChild(providers);
+
+  // Live discussion: start a real multi-AI debate from inside the app and watch it stream.
+  main.appendChild(renderDiscussionPanel(state));
 
   // Conversation: each AI's answer + its own thinking block (separate, collapsible).
   main.appendChild(renderConversation(state.conversation));

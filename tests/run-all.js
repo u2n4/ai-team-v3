@@ -33,6 +33,7 @@ const tests = [
   require('./electron/edge-cookie-importer.test'),
   require('./electron/localstorage-vault.test'),
   require('./electron/provider-open-gate.test'),
+  require('./electron/discussion-request.test'),
   require('./electron/file-upload-controller.test'),
   require('./electron/room-file-share.test'),
   require('./core/quota-guard.test'),
