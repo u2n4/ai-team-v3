@@ -24,7 +24,8 @@ graphify-out/
 # ── Generated local report viewer ───────────────
 docs/V3_TRACE_REPORT_VIEWER.html
 
-# ── Live-run report artifacts (generated locally, never publish) ──
+# ── Live-run & generated report artifacts (generated locally, never publish) ──
+docs/*REPORT*
 docs/ONE_PROVIDER_REPORT.md
 docs/LIVE_PREP_3_SELECTOR_VERIFICATION.md
 docs/LIVE_ENDURANCE_30_REPORT.md
