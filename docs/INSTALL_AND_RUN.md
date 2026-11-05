@@ -1,11 +1,11 @@
 # AI Team V3 — Install And Run
 
-**Status:** offline-safe commands are ready. Live provider commands are human-gated.
+**Status:** Offline test suites and dashboard are verified with Electron `45.2.3`. Live provider commands are strictly human-gated and were not run during the 2026-11-05 repository refresh.
 
 ## Requirements
 
-- Node.js 20+
-- Windows PowerShell
+- Node.js `>=22.12.0`
+- Windows PowerShell (or POSIX shell for offline tests)
 - Dependencies installed in `C:\path\to\ai-team-v3`
 
 ## Setup
@@ -15,10 +15,17 @@ Set-Location -LiteralPath 'C:\path\to\ai-team-v3'
 npm install
 ```
 
+If Windows silently skips extracting `electron.exe` during `npm install`, run:
+
+```powershell
+npm run fix:electron
+```
+
 ## Offline Verification
 
 ```powershell
 Set-Location -LiteralPath 'C:\path\to\ai-team-v3'
+npm test
 npm run test:v3-all
 npm run smoke:two-provider
 npm run smoke:three-provider
@@ -26,7 +33,7 @@ npm run smoke:multi-provider
 npm run report:viewer
 ```
 
-These commands do not contact qwen, kimi, Claude, Perplexity, or any other live provider.
+These commands use fake providers only and do not contact Qwen, Kimi, or any other live provider.
 
 ## Dashboard
 
@@ -38,25 +45,29 @@ npm run app
 Dashboard safety:
 
 - Does not open provider web sessions on startup.
-- Reads local status/report/trace files.
-- Shows mock/fake provider state and health.
-- Keeps live open actions blocked behind approval gates.
-- Uses Electron `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, `webviewTag: false`.
+- Handles absent legacy status files (`FINAL_STATUS.md`, `coordination/*`) cleanly without errors or broken table rows.
+- Shows provider state, health, approval gates, and separated answer + thinking blocks.
+- Keeps live open actions blocked behind both UI confirmation and `AI_TEAM_V3_CONFIRM_SAFE_SESSION`.
+- Uses Electron `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, `webSecurity: true`, and `webviewTag: false`.
 
-## Selector Doctor
+## Human-Gated Live Commands (Not Run During 2026-11-05 Refresh)
 
-Run only when the human is awake and ready to inspect qwen without sending a prompt:
+Live commands open real provider pages and must only be executed interactively by a human operator after confirming a safe logged-in session.
+
+### Selector Doctor
+
+Run only when a human operator is present to inspect `qwen` or `kimi` without sending a prompt:
 
 ```powershell
 Set-Location -LiteralPath 'C:\path\to\ai-team-v3'
 npm run doctor:provider -- qwen
 ```
 
-The doctor should not send a message. It writes `docs/LIVE_PREP_3_SELECTOR_VERIFICATION.md` and a redacted trace.
+The doctor does not send a message. It writes `docs/LIVE_PREP_3_SELECTOR_VERIFICATION.md` and a redacted trace (both gitignored).
 
-## One-Provider Smoke
+### One-Provider Smoke
 
-Run only after qwen is safely logged in, Selector Doctor is ready, and the human explicitly confirms:
+Run only after `qwen` or `kimi` is safely logged in, Selector Doctor passes, and the human explicitly sets the live confirmation variables:
 
 ```powershell
 Set-Location -LiteralPath 'C:\path\to\ai-team-v3'
@@ -66,15 +77,14 @@ $env:AI_TEAM_V3_CONFIRM_SAFE_SESSION='1'
 npm run smoke:one-provider
 ```
 
-Never run Claude or Perplexity live. Never run a full seven-provider live run.
+Never run `chatgpt` or `claude` live (both are hard-blocked by policy).
 
 ## Packaging Readiness
 
-No production installer is built yet. Current safe build readiness gate is:
-
 ```powershell
-npm run test:v3-all
-npm run app
+Set-Location -LiteralPath 'C:\path\to\ai-team-v3'
+npm test
+npm run dist:dir
 ```
 
-Do not package cookies, browser profiles, traces with secrets, provider session data, or V2 runtime data.
+Never package or commit `.env`, cookies, browser profiles, `.tmp/`, `traces/`, `release/`, or generated `docs/*REPORT*` files.
