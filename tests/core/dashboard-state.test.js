@@ -38,6 +38,14 @@ async function run() {
   assert.equal(aiTurn.reasoning.includes('keep it short'), true);    // thinking shown separately
   assert.equal(convState.conversation[0].role, 'user');
 
+  // Absent FINAL_STATUS.md and coordination/* are handled cleanly without UNKNOWN or empty broken rows.
+  const emptyDir = makeTempDir('ai-team-v3-dashboard-empty-');
+  const absentState = buildDashboardState({ projectRoot: emptyDir });
+  assert.equal(absentState.currentStatus, 'OFFLINE_READY');
+  assert.equal(absentState.finalStatus, 'HUMAN_GATED');
+  assert.equal(absentState.reports.some((r) => r.label === 'CURRENT_STATUS' || r.label === 'FINAL_STATUS'), false);
+  assert.equal(absentState.reports.every((r) => Boolean(r.label && r.path && r.status && r.status !== 'UNKNOWN')), true);
+
   console.log('PASS dashboard state: local status, providers, gates, safe defaults, and answer+reasoning conversation render offline');
 }
 

@@ -78,9 +78,35 @@ function buildDashboardState({
   diagnostics = [],
   reasoning = []
 } = {}) {
-  const currentStatusText = readTextIfExists(path.join(projectRoot, 'coordination', 'CURRENT_STATUS.md'));
-  const finalStatusText = readTextIfExists(path.join(projectRoot, 'FINAL_STATUS.md'));
-  const oneProviderReport = readTextIfExists(path.join(projectRoot, 'docs', 'ONE_PROVIDER_REPORT.md'));
+  const currentStatusText = readTextIfExists(path.join(projectRoot, 'coordination', 'CURRENT_STATUS.md')).trim();
+  const finalStatusText = readTextIfExists(path.join(projectRoot, 'FINAL_STATUS.md')).trim();
+  const oneProviderReport = readTextIfExists(path.join(projectRoot, 'docs', 'ONE_PROVIDER_REPORT.md')).trim();
+  const selectorReport = readTextIfExists(path.join(projectRoot, 'docs', 'LIVE_PREP_3_SELECTOR_VERIFICATION.md')).trim();
+  const currentStatus = currentStatusText
+    ? extractStatus(currentStatusText, 'OFFLINE_READY')
+    : 'OFFLINE_READY';
+  const finalStatus = finalStatusText
+    ? extractStatus(finalStatusText, 'HUMAN_GATED')
+    : 'HUMAN_GATED';
+  const reports = [];
+  if (currentStatusText) {
+    reports.push({ label: 'CURRENT_STATUS', path: 'coordination/CURRENT_STATUS.md', status: currentStatus });
+  }
+  if (finalStatusText) {
+    reports.push({ label: 'FINAL_STATUS', path: 'FINAL_STATUS.md', status: finalStatus });
+  }
+  reports.push({
+    label: 'ONE_PROVIDER_REPORT',
+    path: 'docs/ONE_PROVIDER_REPORT.md',
+    status: oneProviderReport
+      ? extractStatus(oneProviderReport, oneProviderReport.includes('Status: NOT_RUN') ? 'NOT_RUN' : 'READY')
+      : 'NOT_RUN'
+  });
+  reports.push({
+    label: 'LIVE_PREP_3_SELECTOR_VERIFICATION',
+    path: 'docs/LIVE_PREP_3_SELECTOR_VERIFICATION.md',
+    status: selectorReport ? extractStatus(selectorReport, 'HUMAN_GATED') : 'HUMAN_GATED'
+  });
   const approvalManager = new ApprovalGateManager();
   const healthByProvider = new Map((health || []).map((entry) => [entry.providerId, entry]));
 
@@ -142,8 +168,8 @@ function buildDashboardState({
   return {
     generatedAt: now.toISOString(),
     liveAutoStart: false,
-    currentStatus: extractStatus(currentStatusText),
-    finalStatus: extractStatus(finalStatusText),
+    currentStatus,
+    finalStatus,
     runStatus: 'OFFLINE_DASHBOARD_READY',
     settings: {
       mode: settings.mode,
@@ -160,12 +186,7 @@ function buildDashboardState({
       maxPromptChars: provider.maxPromptChars
     })),
     approvalGates,
-    reports: [
-      { label: 'CURRENT_STATUS', path: 'coordination/CURRENT_STATUS.md', status: extractStatus(currentStatusText) },
-      { label: 'FINAL_STATUS', path: 'FINAL_STATUS.md', status: extractStatus(finalStatusText) },
-      { label: 'ONE_PROVIDER_REPORT', path: 'docs/ONE_PROVIDER_REPORT.md', status: extractStatus(oneProviderReport, oneProviderReport.includes('Status: NOT_RUN') ? 'NOT_RUN' : 'UNKNOWN') },
-      { label: 'LIVE_PREP_3_SELECTOR_VERIFICATION', path: 'docs/LIVE_PREP_3_SELECTOR_VERIFICATION.md', status: 'HUMAN_GATED' }
-    ],
+    reports,
     traces: readTraceSummaries(projectRoot),
     statusFiles: {
       currentStatusPreview: currentStatusText.slice(0, 4000),

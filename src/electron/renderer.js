@@ -66,14 +66,17 @@ function renderTable(headers, rows) {
   thead.appendChild(tr);
   table.appendChild(thead);
   const tbody = el('tbody');
-  for (const row of rows) {
+  const validRows = (rows || []).filter(
+    (row) => Array.isArray(row) && row.length > 0 && row.every((cell) => cell != null && String(cell).trim() !== '')
+  );
+  for (const row of validRows) {
     const rowNode = el('tr');
     for (const cell of row) {
       rowNode.appendChild(el('td', '', cell));
     }
     tbody.appendChild(rowNode);
   }
-  if (rows.length === 0) {
+  if (validRows.length === 0) {
     const empty = el('tr');
     const cell = el('td', 'muted', 'No records.');
     cell.colSpan = headers.length;
@@ -319,10 +322,16 @@ function renderDashboard(state) {
   ])));
   right.appendChild(traces);
 
-  const statusFiles = el('section', 'panel');
-  statusFiles.appendChild(el('h2', '', 'Status Files'));
-  statusFiles.appendChild(el('pre', '', state.statusFiles.currentStatusPreview || 'No CURRENT_STATUS.md found.'));
-  right.appendChild(statusFiles);
+  const previewText = [
+    state.statusFiles && state.statusFiles.currentStatusPreview,
+    state.statusFiles && state.statusFiles.finalStatusPreview
+  ].filter(Boolean).join('\n\n');
+  if (previewText) {
+    const statusFiles = el('section', 'panel');
+    statusFiles.appendChild(el('h2', '', 'Status Files'));
+    statusFiles.appendChild(el('pre', '', previewText));
+    right.appendChild(statusFiles);
+  }
 
   lower.appendChild(left);
   lower.appendChild(right);
