@@ -82,6 +82,17 @@ function discoverV2SessionReferences({ v2Root = V2_ROOT, files = ['main.js', 'co
       });
     }
   }
+  if (references.length === 0 && fs.existsSync(DEFAULT_POLICY_PATH)) {
+    const text = fs.readFileSync(DEFAULT_POLICY_PATH, 'utf8');
+    const matches = text.match(SAFE_PARTITION_PATTERN) || [];
+    for (const partition of [...new Set(matches)]) {
+      references.push({
+        file: 'config/provider-session-policy.json',
+        kind: 'electron-partition-reference',
+        partition
+      });
+    }
+  }
   return {
     v2Root,
     cookiesRead: false,
