@@ -56,6 +56,7 @@ async function run() {
     'https://example.com/?code=prefix\\u0027CANARY',
     'https://a.com/it\\u0027s?code=CANARY',
     'h\\u0074tps://example.com/?code=CANARY',
+    'h\\u0074tps://example.com/x\\u0027?code=CANARY',
     'https://a.com/cb\\u0023code=CANARY',
     'https://user:CANARY@10.0.0.5/?code=CANARY',
     'https://example.com/cb#code=CANARY',
