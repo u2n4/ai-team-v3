@@ -6,7 +6,7 @@
 // store raw prompt/response bodies; redact what little free text must be kept.
 const SECRET_KEY = /cookie|authorization|token|secret|api[_-]?key|session(?:[_-]?id)?|account[_-]?id|email/i;
 const SECRET_PATTERNS = [
-  /(["']?(?:authorization|set-cookie|cookie)["']?\s*[:=][ \t]*(?:\r?\n[ \t]*(?![!#$%&'*+.^_\x60|~0-9A-Za-z-]+[ \t]*:))?)([^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*)/gi,
+  /((?<![!#$%&'*+.^_\x60|~0-9A-Za-z-])["']?[!#$%&'*+.^_\x60|~0-9A-Za-z-]*(?:cookie|authorization|token|secret|api[_-]?key|session(?:[_-]?id)?|account[_-]?id|email)[!#$%&'*+.^_\x60|~0-9A-Za-z-]*["']?\s*[:=][ \t]*(?:\r?\n[ \t]*(?![!#$%&'*+.^_\x60|~0-9A-Za-z-]+[ \t]*:))?)([^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*)/gi,
   /(["']?(?:(?:access|refresh|id)[_-]?)?token["']?\s*[:=]\s*|["']?(?:secret|client[_-]?secret|api[_-]?key|session(?:[_-]?id)?|account[_-]?id|email)["']?\s*[:=]\s*)("(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'|[^\s,;&}\]\r\n]+)/gi
 ];
 
@@ -20,6 +20,11 @@ function redactSensitiveText(value) {
       if (!(error instanceof SyntaxError)) return '[REDACTED]';
     }
   }
+  // A key hidden behind JSON escapes must still match the patterns below.
+  text = text.replace(/\\u([0-9a-f]{4})/gi, (raw, hex) => {
+    const char = String.fromCharCode(parseInt(hex, 16));
+    return /[\w-]/.test(char) ? char : raw;
+  });
   text = text.replace(/https?:\/\/[^\s<>"']+/gi, (raw) => {
     try {
       const url = new URL(raw);
@@ -36,7 +41,7 @@ function redactSensitiveText(value) {
   }
   return text.replace(/\bbearer\s+[a-z0-9._~+/=-]+/gi, 'Bearer [REDACTED]')
     .replace(/\bsk-[a-z0-9_-]{12,}/gi, '[REDACTED]')
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED]');
+    .replace(/(?<![A-Z0-9._%+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED]');
 }
 
 function redactSensitiveValue(value) {

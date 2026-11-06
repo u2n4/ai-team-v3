@@ -38,6 +38,8 @@ async function run() {
   assert.equal(redactSensitiveText('{"cookie":["a","sid=CANARY"],"ok":1}'), '{"cookie":"[REDACTED]","ok":1}');
   assert.equal(redactSensitiveText('Cookie:\r\nX-Request-Id: public-id').includes('X-Request-Id: public-id'), true);
   assert.equal(redactSensitiveText('Cookie:\r\nX.Trace: public-id').includes('X.Trace: public-id'), true);
+  assert.equal(redactSensitiveText('[INFO] provider used1234 finished'), '[INFO] provider used1234 finished');
+  assert.equal(redactSensitiveText('x'.repeat(200000)).length, 200000);
   assert.equal(redactSensitiveText('['.repeat(10000) + '{"\\u0063ookie":"CANARY"}' + ']'.repeat(10000)).includes('CANARY'), false);
   assert.equal(redactSensitiveText('{"cookie":"a","theme":"dark"}'), '{"cookie":"[REDACTED]","theme":"dark"}');
   for (const raw of [
@@ -47,6 +49,10 @@ async function run() {
     'Cookie: [REDACTED]; sid=CANARY',
     'Cookie:"a"; sid=CANARY',
     'Cookie:"a" sid=CANARY',
+    'X-Api-Key: first, CANARY',
+    'X-Cookie-Info: CANARY',
+    '{"\\u0063ookie":"CANARY",',
+    'note {"\\u0063ookie":"CANARY"}',
     'HTTP_COOKIE=sid=CANARY',
     'session_cookie=CANARY',
     'proxyAuthorization: CANARY',
