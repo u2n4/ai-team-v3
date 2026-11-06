@@ -37,6 +37,8 @@ async function run() {
   assert.equal(redactSensitiveText('{"message":"Cookie: a","ok":1}'), '{"message":"Cookie: [REDACTED]","ok":1}');
   assert.equal(redactSensitiveText('{"cookie":["a","sid=CANARY"],"ok":1}'), '{"cookie":"[REDACTED]","ok":1}');
   assert.equal(redactSensitiveText('Cookie:\r\nX-Request-Id: public-id').includes('X-Request-Id: public-id'), true);
+  assert.equal(redactSensitiveText('Cookie:\r\nX.Trace: public-id').includes('X.Trace: public-id'), true);
+  assert.equal(redactSensitiveText('['.repeat(10000) + '{"\\u0063ookie":"CANARY"}' + ']'.repeat(10000)).includes('CANARY'), false);
   assert.equal(redactSensitiveText('{"cookie":"a","theme":"dark"}'), '{"cookie":"[REDACTED]","theme":"dark"}');
   for (const raw of [
     'Cookie: https://[x sid=CANARY',

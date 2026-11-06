@@ -6,7 +6,7 @@
 // store raw prompt/response bodies; redact what little free text must be kept.
 const SECRET_KEY = /cookie|authorization|token|secret|api[_-]?key|session(?:[_-]?id)?|account[_-]?id|email/i;
 const SECRET_PATTERNS = [
-  /(["']?(?:authorization|set-cookie|cookie)["']?\s*[:=][ \t]*(?:\r?\n[ \t]*(?![\w-]+[ \t]*:))?)([^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*)/gi,
+  /(["']?(?:authorization|set-cookie|cookie)["']?\s*[:=][ \t]*(?:\r?\n[ \t]*(?![!#$%&'*+.^_\x60|~0-9A-Za-z-]+[ \t]*:))?)([^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*)/gi,
   /(["']?(?:(?:access|refresh|id)[_-]?)?token["']?\s*[:=]\s*|["']?(?:secret|client[_-]?secret|api[_-]?key|session(?:[_-]?id)?|account[_-]?id|email)["']?\s*[:=]\s*)("(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'|[^\s,;&}\]\r\n]+)/gi
 ];
 
@@ -16,7 +16,9 @@ function redactSensitiveText(value) {
     try {
       const parsed = JSON.parse(text);
       if (parsed && typeof parsed === 'object') return JSON.stringify(redactSensitiveValue(parsed));
-    } catch { /* Not JSON: redact it as text. */ }
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) return '[REDACTED]';
+    }
   }
   text = text.replace(/https?:\/\/[^\s<>"']+/gi, (raw) => {
     try {
