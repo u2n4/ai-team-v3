@@ -35,7 +35,7 @@ function redactSensitiveText(value) {
   // character can end a URL early. Any URL holding an escape is dropped whole.
   text = redactUrls(text).replace(/\\u([0-9a-f]{4})/gi, (raw, hex) => {
     const char = String.fromCharCode(parseInt(hex, 16));
-    return /^[!#$%&'*+.^_\x60|~0-9A-Za-z-]$/.test(char) ? char : raw;
+    return /^[!#$%&*+.^_\x60|~0-9A-Za-z-]$/.test(char) ? char : raw;
   });
   text = redactUrls(text);
   for (const pattern of SECRET_PATTERNS) {
