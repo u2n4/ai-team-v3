@@ -6,7 +6,7 @@
 // store raw prompt/response bodies; redact what little free text must be kept.
 const SECRET_KEY = /cookie|authorization|token|secret|api[_-]?key|session(?:[_-]?id)?|account[_-]?id|email/i;
 const SECRET_PATTERNS = [
-  /(["']?\b(?:authorization|set-cookie|cookie)["']?[ \t]*[:=][ \t]*)([^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*)/gi,
+  /(["']?(?:authorization|set-cookie|cookie)["']?\s*[:=][ \t]*(?:\r?\n[ \t]*(?![\w-]+[ \t]*:))?)([^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*)/gi,
   /(["']?(?:(?:access|refresh|id)[_-]?)?token["']?\s*[:=]\s*|["']?(?:secret|client[_-]?secret|api[_-]?key|session(?:[_-]?id)?|account[_-]?id|email)["']?\s*[:=]\s*)("(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'|[^\s,;&}\]\r\n]+)/gi
 ];
 
@@ -42,7 +42,7 @@ function redactSensitiveValue(value) {
   if (Array.isArray(value)) return value.map(redactSensitiveValue);
   if (!value || typeof value !== 'object') return value;
   return Object.fromEntries(Object.entries(value).map(([key, item]) =>
-    [key, SECRET_KEY.test(key) ? '[REDACTED]' : redactSensitiveValue(item)]));
+    [redactSensitiveText(key), SECRET_KEY.test(key) ? '[REDACTED]' : redactSensitiveValue(item)]));
 }
 
 module.exports = {
