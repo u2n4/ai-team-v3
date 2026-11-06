@@ -1,6 +1,7 @@
 'use strict';
 
 const { SAFE_DOCTOR_COMMAND, runDoctor, DEFAULT_SELECTOR_REPORT_PATH } = require('./selector-doctor');
+const { redactSensitiveText } = require('../src/core/redact');
 
 async function main() {
   const result = await runDoctor();
@@ -12,14 +13,14 @@ async function main() {
   console.log(`status:      ${result.status || (result.ok ? 'READY_FOR_ONE_PROVIDER_SMOKE' : 'UNKNOWN')}`);
   console.log(`ok:          ${result.ok === true}`);
   if (result.summary && result.summary.message) {
-    console.log(`message:     ${result.summary.message}`);
+    console.log(`message:     ${redactSensitiveText(result.summary.message)}`);
   }
   if (result.summary && result.summary.urlObserved) {
-    console.log(`urlObserved: ${result.summary.urlObserved}`);
+    console.log(`urlObserved: ${redactSensitiveText(result.summary.urlObserved)}`);
   }
-  console.log(`report:      ${process.env.AI_TEAM_V3_SELECTOR_REPORT || DEFAULT_SELECTOR_REPORT_PATH}`);
+  console.log(`report:      ${redactSensitiveText(process.env.AI_TEAM_V3_SELECTOR_REPORT || DEFAULT_SELECTOR_REPORT_PATH)}`);
   if (result.tracePath) {
-    console.log(`trace:       ${result.tracePath}`);
+    console.log(`trace:       ${redactSensitiveText(result.tracePath)}`);
   }
   if (result.ok) {
     console.log('\n✅ READY — you can now run:  npm run smoke:one-provider');

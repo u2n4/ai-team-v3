@@ -31,6 +31,7 @@ function analyzeRun(report = {}, {
   providerIds = [],
   maxPromptChars = 12000,
   minAiTurns = 1,
+  maxConsecutiveFailures = 3,
   mode = 'unknown'
 } = {}) {
   const transcript = asArray(report.transcript);
@@ -84,7 +85,11 @@ function analyzeRun(report = {}, {
     : fail('prompt-budget', `Max observed prompt chars ${maxObservedPromptChars}/${maxPromptChars}.`));
 
   const disabled = asArray(report.quota).filter((entry) => entry.disabledForRun === true || entry.limitDetected === true);
-  checks.push(disabled.length > 0
+  const uncontained = asArray(report.quota).filter((entry) =>
+    (entry.limitDetected === true || entry.consecutiveFailures >= maxConsecutiveFailures) && entry.disabledForRun !== true);
+  checks.push(uncontained.length > 0
+    ? fail('quota-failure-tracking', 'Failing/limited providers remained enabled.', { providers: uncontained.map(entry => entry.providerId) })
+    : disabled.length > 0
     ? pass('quota-failure-tracking', 'Quota guard disabled repeated failing/limited providers.', { disabled: disabled.map((entry) => entry.providerId) })
     : pass('quota-failure-tracking', diagnostics.length > 0
       ? 'Single injected failures stayed isolated below the disable threshold.'

@@ -187,7 +187,6 @@ class DomCapture {
         return {
           url: location.href,
           title: document.title,
-          bodyTextPreview: (document.body && document.body.innerText || '').slice(0, 2000),
           selectorCounts
         };
       })();

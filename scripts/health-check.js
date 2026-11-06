@@ -143,10 +143,8 @@ async function main() {
 
 
 
-  // ELECTRON WORKER MODE: check exactly ONE provider and print one line, then quit. The Node
-  // orchestrator (below) spawns one electron worker per provider, so a crash on one heavy
-  // provider page can never abort the others — the bulletproof isolation that a single
-  // long-lived electron process (many heavy SPA windows) doesn't reliably provide.
+  // One Electron worker checks the selected providers sequentially. JavaScript
+  // failures are isolated per provider; a native worker crash stops this probe.
   for (const id of providers) {
     let health;
     let signals = {};
@@ -186,10 +184,10 @@ async function orchestrate() {
 }
 
 if (process.versions && process.versions.electron) {
-  // Electron worker: check the single provider passed as argv (or AI_TEAM_V3_HEALTH_WORKER set).
+  // Electron worker: check the selected providers passed as argv.
   main().catch((error) => { console.error('[health] fatal:', redactSensitiveText(error.message)); process.exit(1); });
 } else if (require.main === module) {
-  // Node orchestrator: spawn one isolated electron worker per provider.
+  // Node orchestrator: spawn one Electron worker for the selected roster.
   orchestrate().catch((error) => { console.error('[health] orchestrator failed:', redactSensitiveText(error.message)); process.exit(1); });
 }
 

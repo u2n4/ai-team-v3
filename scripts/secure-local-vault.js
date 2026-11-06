@@ -72,7 +72,7 @@ async function main() {
   app.quit();
 }
 
-if (require.main === module && process.versions && process.versions.electron) {
+if (process.versions && process.versions.electron && path.resolve(process.argv[1] || '') === __filename) {
   main().catch((error) => {
     console.error(`Vault secure failed: ${error.message}`);
     process.exit(1);

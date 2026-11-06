@@ -61,12 +61,14 @@ async function run() {
     budgetGuard: new BudgetGuard(),
     quotaGuard: new QuotaGuard()
   });
-  const rejectResult = await rejectActor.runTurn({ cycleIndex: 1, turnIndex: 0, userGoal: 'unit reject', activeProviders: ['qwen'] });
+  const rejectCanary = 'rejected-body-canary-9f2b';
+  const rejectResult = await rejectActor.runTurn({ cycleIndex: 1, turnIndex: 0, userGoal: rejectCanary, activeProviders: ['qwen'] });
   assert.equal(rejectResult.ok, false);
   const rejectEntry = rejectDiagnostics.list().find((d) => d.details && 'rejectedLength' in d.details);
   assert.equal(Boolean(rejectEntry), true);
   assert.equal(typeof rejectEntry.details.rejectedLength, 'number');
   assert.equal('rawTextPreview' in rejectEntry.details, false);
+  assert.equal(JSON.stringify(rejectDiagnostics.list()).includes(rejectCanary), false, 'Rejected body must be absent from every diagnostic field');
 
   console.log('PASS API contracts: compatibility APIs, typed budget error, transcript assertion, invalid transition guard, reject diagnostics carry metadata only');
 }

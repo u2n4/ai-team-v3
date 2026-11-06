@@ -27,8 +27,49 @@ const { validateDiscussionRequest } = require('../src/electron/main');
 const { buildInjectionScript } = require('../src/electron/localstorage-vault');
 const { readDiscussionEvidence } = require('../scripts/live-mode-validation');
 const { FileUploadController, safeErrorMessage } = require('../src/electron/file-upload-controller');
+const { waitForCondition } = require('../src/electron/wait-assertions');
+const { runFakeLadderStep } = require('../scripts/smoke-provider-ladder');
+const { DomCapture } = require('../src/electron/dom-capture');
+const { classifyProviderHealth } = require('../src/core/provider-health-classifier');
 
 async function run() {
+  const failedProbe = classifyProviderHealth({ error: 'ERR_NAME_NOT_RESOLVED token=private-canary' });
+  assert.equal(failedProbe.verdict, 'UNKNOWN');
+  assert.ok(failedProbe.reason.includes('ERR_NAME_NOT_RESOLVED'));
+  assert.equal(failedProbe.reason.includes('private-canary'), false);
+  const xray = await new DomCapture({ webContents: { executeJavaScript: script => vm.runInNewContext(script, {
+    document: { title: 'Offline fixture', body: { innerText: 'private-body-canary-1a7' }, querySelectorAll: () => [] },
+    location: { href: 'https://provider.test/' }
+  }) } }).xray({ inputSelectors: ['textarea'] });
+  assert.equal(JSON.stringify(xray).includes('private-body-canary-1a7'), false);
+  assert.equal('bodyTextPreview' in xray, false);
+  for (const stepName of [undefined, 'four', 'constructor']) {
+    await assert.rejects(() => runFakeLadderStep({ stepName }), /Unknown fake ladder step/);
+  }
+  let pollsAfterNavigation = 0;
+  assert.equal(await waitForCondition(async () => {
+    if (!pollsAfterNavigation++) throw new Error('Execution context was destroyed');
+    return 'ready';
+  }, { timeoutMs: 100, pollMs: 1 }), 'ready');
+  await assert.rejects(() => waitForCondition(async () => { throw new Error('unexpected failure'); }), /unexpected failure/);
+  // Electron's default-app loader does not set require.main to the entry module.
+  // Exercise entry/import guards in a VM; no real login, vault or Electron process.
+  for (const script of ['manual-login.js', 'secure-local-vault.js']) {
+    const filename = path.resolve(__dirname, '..', 'scripts', script);
+    for (const entry of [false, true]) {
+      let appCalls = 0;
+      const fakeApp = { whenReady: async () => { appCalls++; }, quit: () => { appCalls++; }, exit: () => { appCalls++; } };
+      const localRequire = require('node:module').createRequire(filename);
+      const importModule = name => name === 'electron' ? { app: fakeApp } : localRequire(name);
+      vm.runInNewContext(fs.readFileSync(filename, 'utf8'), {
+        require: importModule, module: { exports: {} }, __filename: filename, __dirname: path.dirname(filename),
+        console: { log() {}, error() {} },
+        process: { versions: { electron: '45.2.3' }, argv: ['electron', entry ? filename : path.join(__dirname, 'other.js')], env: {}, exit() { appCalls++; } }
+      });
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(appCalls > 0, entry, `${script} must run only as the Electron entry file`);
+    }
+  }
   const policy = structuredClone(DEFAULT_POLICY);
   policy.forbiddenLiveProviders = [];
   for (const id of ['chatgpt', 'claude', 'gemini']) {
@@ -120,6 +161,7 @@ async function run() {
   assert.equal(outside.code, 'BLOCKED_PROVIDER_FORBIDDEN');
   console.log('PASS final round: security boundaries, async dashboard, bounded traces, provider deadlines/closed views and room continuation');
 }
+
 
 if (require.main === module) run().catch(error => { console.error(error); process.exitCode = 1; });
 module.exports = run;

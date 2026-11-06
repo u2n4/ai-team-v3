@@ -29,6 +29,7 @@ const { ProviderWindowManager } = require('../src/electron/provider-window-manag
 const { assertProviderLiveAllowed, loadProviderSessionPolicy } = require('../src/providers/provider-session-policy');
 const { LIVE_PROVIDER_ALLOWLIST, FORBIDDEN_LIVE_PROVIDERS } = require('../src/providers/provider-contract');
 const { readDiscussionEvidence } = require('./live-mode-validation');
+const { redactSensitiveText } = require('../src/core/redact');
 
 const LIVE_ENV = 'AI_TEAM_V3_LIVE';
 const CONFIRM_ENV = 'AI_TEAM_V3_CONFIRM_SAFE_SESSION';
@@ -36,6 +37,7 @@ const APPROVE_DISCUSSION_ENV = 'AI_TEAM_V3_APPROVE_DISCUSSION';
 const STATUS_FILE = path.join(__dirname, '..', '.tmp', 'discussion-status.txt');
 
 function writeStatus(line) {
+  line = redactSensitiveText(line);
   try {
     fs.mkdirSync(path.dirname(STATUS_FILE), { recursive: true });
     fs.appendFileSync(STATUS_FILE, `${line}\n`);
@@ -143,36 +145,18 @@ async function main() {
   const { TranscriptStore } = require('../src/core/transcript-store');
   const transcriptStore = new TranscriptStore();
   const orchestrator = new Orchestrator({ providers, transcriptStore });
-  writeStatus(`Discussing: "${goal}"`);
-
-  let printedTurns = 0;
-  const poll = setInterval(() => {
-    try {
-      const turns = transcriptStore.list().filter((e) => e.role === 'ai');
-      for (let i = printedTurns; i < turns.length; i++) {
-        const t = turns[i];
-        writeStatus(`  [${t.senderName || t.senderId}] ${String(t.text || '').replace(/\s+/g, ' ').slice(0, 240)}`);
-      }
-      printedTurns = turns.length;
-    } catch {}
-  }, 1500);
+  writeStatus(`Discussion prompt: ${goal.length} characters (body omitted).`);
 
   // Pause between turns so a long fast discussion doesn't trip per-account rate limits /
   // bot challenges (the cause of the duplicate/empty turns seen in 10-round runs).
   const turnDelayMs = Math.max(0, Number(process.env.AI_TEAM_V3_TURN_DELAY_MS) || 4000);
-  let report;
-  try {
-    report = await orchestrator.run({ userMessage: goal, cycles, userGoal: goal, turnDelayMs });
-  } finally {
-    clearInterval(poll);
-  }
+  const report = await orchestrator.run({ userMessage: goal, cycles, userGoal: goal, turnDelayMs,
+    onTurnResult: result => writeStatus(result.ok
+      ? `  [${result.providerId}] captured answer (${result.text.length} characters).`
+      : `  [${result.providerId}] ${result.code}: ${result.message || 'Provider unavailable.'}`)
+  });
 
   const aiTurns = report.transcript.filter((e) => e.role === 'ai');
-  // Flush any turns the poller missed, then the summary.
-  for (let i = printedTurns; i < aiTurns.length; i++) {
-    const t = aiTurns[i];
-    writeStatus(`  [${t.senderName || t.senderId}] ${String(t.text || '').replace(/\s+/g, ' ').slice(0, 240)}`);
-  }
   writeStatus(`Discussion complete: ${aiTurns.length} AI turns, ${report.diagnostics.length} diagnostics.`);
 
   process.exitCode = aiTurns.length > 0 ? 0 : 1;
