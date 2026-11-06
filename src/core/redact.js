@@ -22,7 +22,7 @@ function redactSensitiveText(value) {
   });
   for (const pattern of SECRET_PATTERNS) {
     text = text.replace(pattern, (_match, prefix, secret) => {
-      if (secret.startsWith('[REDACTED]')) return _match;
+      if (secret.startsWith('[REDACTED')) return _match;
       const quote = /^["']/.test(secret) ? secret[0] : '';
       return `${prefix}${quote}[REDACTED]${quote}`;
     });
