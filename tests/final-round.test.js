@@ -35,6 +35,21 @@ const { classifyProviderHealth } = require('../src/core/provider-health-classifi
 async function run() {
   const { redactSensitiveText } = require('../src/core/redact');
   assert.equal(redactSensitiveText('Cookie: theme=dark; sid=CANARY'), 'Cookie: [REDACTED]');
+  assert.equal(redactSensitiveText('{"cookie":"a","theme":"dark"}'), '{"cookie":"[REDACTED]","theme":"dark"}');
+  for (const raw of [
+    'Cookie: https://[x sid=CANARY',
+    'Cookie: [REDACTED-x sid=CANARY',
+    'Cookie: [REDACTED] sid=CANARY',
+    'Cookie: [REDACTED]; sid=CANARY',
+    'Cookie:"a"; sid=CANARY',
+    'Cookie:"a" sid=CANARY',
+    'Cookie:"a; sid=CANARY',
+    '"Cookie": a=1; sid=CANARY',
+    '{"cookie":"a\\"b; sid=CANARY"}',
+    '{"token":"a\\"CANARY"}'
+  ]) {
+    assert.equal(redactSensitiveText(raw).includes('CANARY'), false, raw);
+  }
   assert.equal(redactSensitiveText('Authorization: Digest username="a", response="CANARY"'), 'Authorization: [REDACTED]');
   assert.equal(redactSensitiveText('{"cookie":"sid=CANARY","ok":1}'), '{"cookie":"[REDACTED]","ok":1}');
   const failedProbe = classifyProviderHealth({ error: 'ERR_NAME_NOT_RESOLVED token=private-canary' });
