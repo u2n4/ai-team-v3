@@ -56,6 +56,7 @@ async function main() {
   if (process.env[LIVE_ENV] !== '1' || process.env[CONFIRM_ENV] !== '1') {
     console.error(`Refused. Set ${LIVE_ENV}=1 and ${CONFIRM_ENV}=1 to import Edge cookies for the allowed providers.`);
     process.exitCode = 1;
+    if (process.versions.electron) require('electron').app.exit(1);
     return;
   }
 

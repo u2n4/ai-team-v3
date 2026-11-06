@@ -1,12 +1,12 @@
 'use strict';
 
 const SECRET_PATTERNS = Object.freeze([
-  /\bauthorization\s*[:=]\s*bearer\s+[a-z0-9._~+/=-]+/i,
+  /\bauthorization["']?\s*[:=]\s*bearer\s+[a-z0-9._~+/=-]+/i,
   /\bcookie\s*[:=]\s*[^\s]+/i,
   /\bset-cookie\s*[:=]\s*[^\s]+/i,
-  /\b(api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|session[_-]?id|client[_-]?secret)\s*[:=]\s*['"]?[a-z0-9._~+/=-]{8,}/i,
+  /\b(api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|session[_-]?id|client[_-]?secret)["']?\s*[:=]\s*['"]?[a-z0-9._~+/=-]{8,}/i,
   /\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/i,
-  /\bsk-[a-z0-9]{12,}/i,
+  /\bsk-[a-z0-9_-]{12,}/i,
   /-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----/i
 ]);
 
@@ -21,12 +21,12 @@ const CONTAMINATION_PATTERNS = Object.freeze([
   { code: 'UNSAFE_INSTRUCTION_LEAK', pattern: /\bbypass\b.*\b(captcha|cloudflare|login|rate limit|paywall|paid wall)\b/i }
 ]);
 
-// 2026-06-21 (D20): only ChatGPT and Claude remain forbidden live. A forbidden-provider
+// 2026-06-21 (D20): ChatGPT, Claude and Gemini remain forbidden live. A forbidden-provider
 // live attempt in a run report is still a problem-detector finding.
-const FORBIDDEN_LIVE_PROVIDERS = Object.freeze(['chatgpt', 'claude']);
+const FORBIDDEN_LIVE_PROVIDERS = Object.freeze(['chatgpt', 'claude', 'gemini']);
 
 function asArray(value) {
-  return Array.isArray(value) ? value : [];
+  return Array.isArray(value) ? value.filter(item => item != null) : [];
 }
 
 function textOf(value) {
@@ -45,7 +45,7 @@ function detectSecretsInText(text, { source = 'text' } = {}) {
 
 function detectTranscriptContamination(transcript = []) {
   const problems = [];
-  for (const entry of asArray(transcript)) {
+  for (const entry of asArray(transcript).filter(Boolean)) {
     const text = textOf(entry.text);
     if (containsSecret(text)) {
       problems.push({
@@ -76,7 +76,7 @@ function detectTranscriptContamination(transcript = []) {
 
 function detectDiagnosticsLeak(transcript = []) {
   return asArray(transcript)
-    .filter((entry) => entry.meta && entry.meta.diagnostic === true)
+    .filter((entry) => entry && entry.meta && entry.meta.diagnostic === true)
     .map((entry) => ({
       code: 'DIAGNOSTIC_META_IN_TRANSCRIPT',
       severity: 'fail',

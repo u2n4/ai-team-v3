@@ -75,7 +75,7 @@ async function run() {
   // 2026-06-21 (D20): gemini/perplexity are no longer forbidden, but stay outside the
   // doctor's qwen/kimi allowlist (UNSUPPORTED). Only ChatGPT/Claude stay forbidden.
   assert.equal(validateProvider('perplexity').status, 'BLOCKED_UNSUPPORTED_PROVIDER');
-  assert.equal(validateProvider('gemini').status, 'BLOCKED_UNSUPPORTED_PROVIDER');
+  assert.equal(validateProvider('gemini').status, 'BLOCKED_PROVIDER_FORBIDDEN');
   assert.equal(validateProvider('claude').status, 'BLOCKED_PROVIDER_FORBIDDEN');
   assert.equal(validateProvider('chatgpt').status, 'BLOCKED_PROVIDER_FORBIDDEN');
 

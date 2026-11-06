@@ -34,12 +34,14 @@ function collectTraceFiles(traceRoot) {
 }
 
 function summarizeTrace(filePath, projectRoot = process.cwd()) {
-  const raw = redactSensitiveText(fs.readFileSync(filePath, 'utf8'));
+  let raw;
+  try { raw = fs.readFileSync(filePath, 'utf8'); } catch { return { file: path.relative(projectRoot, filePath), providerId: 'unknown', status: 'UNREADABLE' }; }
   let parsed = {};
   try {
     parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) parsed = { status: 'UNREADABLE' };
   } catch (_error) {
-    parsed = {};
+    parsed = { status: 'UNREADABLE' };
   }
   return {
     file: path.relative(projectRoot, filePath),
@@ -53,7 +55,7 @@ function summarizeTrace(filePath, projectRoot = process.cwd()) {
     responseCountAfter: parsed.send ? parsed.send.finalResponseCount : parsed.capture && parsed.capture.finalCount,
     captureDuration: parsed.capture ? parsed.capture.stableMs : null,
     normalizerResult: parsed.normalizer ? parsed.normalizer.code : null,
-    firewallDecision: parsed.normalizer ? (parsed.normalizer.ok ? 'ACCEPTED' : 'REJECTED') : null,
+    firewallDecision: parsed.normalizer ? (parsed.normalizer.ok === true ? 'ACCEPTED' : parsed.normalizer.ok === false ? 'REJECTED' : 'UNKNOWN') : null,
     diagnostics: Array.isArray(parsed.diagnosticsSummary) ? parsed.diagnosticsSummary : [],
     urlObserved: parsed.selectorSummary ? parsed.selectorSummary.urlObserved : null
   };

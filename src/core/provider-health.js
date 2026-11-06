@@ -47,10 +47,9 @@ class ProviderHealthStore {
 
   markSuccess(providerId, { responseTimeMs = null } = {}) {
     const record = this.ensure(providerId);
-    record.available = true;
+    record.available = !record.disabledForRun && !record.challengeDetected && !record.rateLimitDetected;
     record.lastSuccessAt = nowIso();
     record.consecutiveFailures = 0;
-    record.disabledForRun = false;
     record.captureReliability = Math.min(1, Number((record.captureReliability + 0.2).toFixed(3)));
     if (Number.isFinite(Number(responseTimeMs))) {
       record.averageResponseTime = record.averageResponseTime == null
@@ -67,7 +66,7 @@ class ProviderHealthStore {
     if (/challenge|captcha|cloudflare/i.test(code)) {
       record.challengeDetected = true;
     }
-    if (/limit|quota|too_many_requests|rate/i.test(code)) {
+    if (/limit|quota|too_many_requests|(?:^|_)rate(?:_|$)/i.test(code)) {
       record.rateLimitDetected = true;
     }
     if (record.consecutiveFailures >= this.disableAfterFailures || record.challengeDetected || record.rateLimitDetected) {

@@ -30,10 +30,10 @@ async function run() {
   assert.equal(unsafe.live.enabled, true);
   assert.equal(unsafe.live.autoSendOnStartup, false);
   assert.deepEqual(unsafe.live.allowedProviders, ['qwen', 'kimi']);
-  // forbiddenProviders tracks FORBIDDEN_LIVE_PROVIDERS (now chatgpt/claude only). Note the
+  // forbiddenProviders tracks FORBIDDEN_LIVE_PROVIDERS (now chatgpt/claude/gemini). Note the
   // safe defaults still force allowedProviders to qwen/kimi and disable every provider's
   // liveEnabled on startup regardless of policy — opening the allowlist does not auto-enable.
-  assert.deepEqual(unsafe.live.forbiddenProviders, ['chatgpt', 'claude']);
+  assert.deepEqual(unsafe.live.forbiddenProviders, ['chatgpt', 'claude', 'gemini']);
   assert.equal(unsafe.live.fullSevenProviderLive, false);
   assert.equal(unsafe.providers.claude.liveEnabled, false);
   assert.equal(unsafe.providers.chatgpt.liveEnabled, false);

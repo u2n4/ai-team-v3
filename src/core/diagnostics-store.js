@@ -15,20 +15,20 @@ class DiagnosticsStore {
       code,
       severity,
       message: message || code,
-      details,
+      details: structuredClone(details),
       createdAt: new Date().toISOString(),
       index: this.entries.length + 1
     };
     this.entries.push(entry);
-    return entry;
+    return structuredClone(entry);
   }
 
   list() {
-    return [...this.entries];
+    return structuredClone(this.entries);
   }
 
   byProvider(providerId) {
-    return this.entries.filter((entry) => entry.providerId === providerId);
+    return structuredClone(this.entries.filter((entry) => entry.providerId === providerId));
   }
 
   hasCode(code, providerId) {

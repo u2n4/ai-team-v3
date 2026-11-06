@@ -11,6 +11,7 @@ const {
   hasLocalStorageVault,
   clearLocalStorageVault
 } = require('./localstorage-vault');
+const { withDeadline } = require('../core/deadline');
 
 class ProviderWindowManager {
   constructor({ hostWindow, providerDefinitions, sessionPolicy = loadProviderSessionPolicy() }) {
@@ -18,6 +19,8 @@ class ProviderWindowManager {
     this.providerDefinitions = providerDefinitions;
     this.sessionPolicy = sessionPolicy;
     this.views = new Map();
+    this.pendingOpens = new Map();
+    if (hostWindow.once) hostWindow.once('closed', () => this.dispose());
   }
 
   getElectron() {
@@ -25,22 +28,35 @@ class ProviderWindowManager {
   }
 
   getDefinition(providerId) {
-    const definition = this.providerDefinitions[providerId];
+    const definition = Object.hasOwn(this.providerDefinitions, providerId) ? this.providerDefinitions[providerId] : null;
     if (!definition) {
       throw new Error(`Unknown provider: ${providerId}`);
     }
     return definition;
   }
 
-  async openProvider(providerId, { reset = false, loadTimeoutMs } = {}) {
+  async openProvider(providerId, options = {}) {
+    if (this.pendingOpens.has(providerId)) return this.pendingOpens.get(providerId);
+    const pending = this.openNewProvider(providerId, options);
+    this.pendingOpens.set(providerId, pending);
+    try { return await pending; } finally { this.pendingOpens.delete(providerId); }
+  }
+
+  dispose() {
+    for (const entry of this.views.values()) this.destroyView(entry.view);
+    this.views.clear();
+  }
+
+  async openNewProvider(providerId, { reset = false, loadTimeoutMs } = {}) {
     const definition = this.getDefinition(providerId);
     assertProviderLiveAllowed(providerId, { policy: this.sessionPolicy });
     const existing = this.views.get(providerId);
-    if (existing && !reset) {
+    if (existing && !reset && !existing.webContents.isDestroyed()) {
       this.focusView(providerId);
       return this.describeView(providerId);
     }
 
+    if (existing) { this.views.delete(providerId); this.destroyView(existing.view); }
     const { session } = this.getElectron();
     const partitionResolution = resolveProviderPartition(definition, providerId, { policy: this.sessionPolicy });
     const partitionSession = session.fromPartition(partitionResolution.partition, { cache: true });
@@ -58,11 +74,13 @@ class ProviderWindowManager {
     // store their session in localStorage, not cookies). The page is now on the correct
     // origin, so executeJavaScript can write localStorage. Reload once so the SPA boots
     // with the restored session. Best-effort: never block or fail openProvider.
-    await this.injectLocalStorageVault(providerId, view.webContents);
+    try {
+    await withDeadline(() => this.injectLocalStorageVault(providerId, view.webContents), 20000, 'PROVIDER_VAULT_TIMEOUT');
     // Dismiss any blocking overlay/modal/popup that covers the composer (e.g. deepseek's
     // "Abnormal usage environment" dialog, cookie banners, "Got it" tips). This is the
     // "something you have to close first" the user observed. Best-effort, never blocks.
-    await this.dismissOverlays(providerId, view.webContents);
+    await withDeadline(() => this.dismissOverlays(providerId, view.webContents), 3000, 'PROVIDER_OVERLAY_TIMEOUT');
+    } catch (error) { this.destroyView(view); throw error; }
     this.views.set(providerId, {
       providerId,
       definition,
@@ -100,19 +118,26 @@ class ProviderWindowManager {
       if (!hasLocalStorageVault(providerId)) return;
       const store = loadLocalStorageVault(providerId);
       if (!store || Object.keys(store).length === 0) return;
-      const written = await webContents.executeJavaScript(buildInjectionScript(store, { overwrite: true }));
+      const written = await webContents.executeJavaScript(buildInjectionScript(store, { overwrite: true, expectedOrigin: new URL(this.getDefinition(providerId).url).origin }));
       this._vaultInjected.add(providerId);
       if (Number(written) > 0) {
         clearLocalStorageVault(providerId);
         // Reload so the SPA boots with the restored session, and WAIT for the page to
         // finish loading before returning — otherwise dismissOverlays / the first send
         // would race a half-booted page.
+        let finish;
+        let timer;
         const loaded = new Promise((resolve) => {
-          webContents.once('did-finish-load', resolve);
-          webContents.once('dom-ready', resolve);
+          finish = resolve;
+          webContents.once('did-finish-load', finish);
+          webContents.once('dom-ready', finish);
+          timer = setTimeout(finish, 15000);
         });
-        webContents.reload();
-        await Promise.race([loaded, new Promise((r) => setTimeout(r, 15000))]);
+        try { webContents.reload(); await loaded; } finally {
+          clearTimeout(timer);
+          webContents.removeListener('did-finish-load', finish);
+          webContents.removeListener('dom-ready', finish);
+        }
         await new Promise((resolve) => setTimeout(resolve, 1200));
       }
     } catch (_error) {
@@ -132,7 +157,7 @@ class ProviderWindowManager {
         (() => {
           const extra = ${JSON.stringify(extra)};
           const clickIfVisible = (el) => {
-            try { if (el && el.offsetParent !== null) { el.click(); return true; } } catch (_e) {}
+            try { if (el && el.getClientRects().length > 0) { el.click(); return true; } } catch (_e) {}
             return false;
           };
           let clicked = 0;
@@ -147,7 +172,7 @@ class ProviderWindowManager {
           const ariaRe = /^(close|dismiss)$/i;
           const containers = document.querySelectorAll('[role="dialog"],[aria-modal="true"],[class*="modal" i],[class*="popup" i],[class*="banner" i],[class*="toast" i],[class*="consent" i],[class*="cookie" i]');
           for (const cont of containers) {
-            if (cont.offsetParent === null) continue;
+            if (cont.getClientRects().length === 0) continue;
             for (const b of cont.querySelectorAll('button,[role="button"],[aria-label]')) {
               const t = (b.innerText || '').trim();
               const a = b.getAttribute('aria-label') || '';
@@ -157,12 +182,12 @@ class ProviderWindowManager {
           // 3) Buttonless modals (e.g. deepseek "Abnormal usage environment"): press ESC,
           //    then click the dimmed overlay backdrop to dismiss.
           const modal = document.querySelector('[role="dialog"],[class*="modal" i],[class*="overlay" i],[class*="backdrop" i]');
-          if (modal && modal.offsetParent !== null) {
+          if (modal && modal.getClientRects().length > 0) {
             for (const t of ['keydown', 'keyup']) {
               document.dispatchEvent(new KeyboardEvent(t, { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true }));
             }
             const overlay = document.querySelector('[class*="overlay" i],[class*="backdrop" i],[class*="mask" i]');
-            if (overlay && overlay.offsetParent !== null) { try { overlay.click(); clicked++; } catch (_e) {} }
+            if (overlay && overlay.getClientRects().length > 0) { try { overlay.click(); clicked++; } catch (_e) {} }
           }
           return clicked;
         })();
@@ -178,9 +203,9 @@ class ProviderWindowManager {
   // forever before their own timeouts could start. Race it against a configurable
   // deadline and surface a typed error so callers can write a BLOCKED report.
   async loadUrlWithTimeout(webContents, url, providerId, loadTimeoutMs) {
-    const ms = Number.isFinite(loadTimeoutMs)
+    const ms = Number.isFinite(loadTimeoutMs) && loadTimeoutMs > 0
       ? loadTimeoutMs
-      : Number(process.env.AI_TEAM_V3_LOAD_TIMEOUT_MS) || 45000;
+      : (Number(process.env.AI_TEAM_V3_LOAD_TIMEOUT_MS) > 0 ? Number(process.env.AI_TEAM_V3_LOAD_TIMEOUT_MS) : 45000);
     let timer = null;
     try {
       await Promise.race([

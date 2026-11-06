@@ -3,18 +3,20 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+const { FORBIDDEN_LIVE_PROVIDERS } = require('./provider-contract');
+
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 const DEFAULT_POLICY_PATH = path.join(PROJECT_ROOT, 'config', 'provider-session-policy.json');
 const V2_ROOT = path.resolve(PROJECT_ROOT, '..');
 
 // 2026-06-21 (D20, Ali's explicit instruction): all providers are live-allowed EXCEPT
-// ChatGPT and Claude, which remain forbidden before page open. Every live provider stays
+// ChatGPT, Claude and Gemini, which remain forbidden before page open. Every live provider stays
 // human-gated (humanApprovalRequired + requireHumanConfirmationForLiveSend) — opening the
 // allowlist does NOT bypass the env/UI confirmation gates.
 const DEFAULT_POLICY = Object.freeze({
   reuseV2Sessions: true,
   allowedReuseProviders: ['qwen', 'kimi'],
-  forbiddenLiveProviders: ['chatgpt', 'claude'],
+  forbiddenLiveProviders: ['chatgpt', 'claude', 'gemini'],
   requireHumanConfirmationForLiveSend: true,
   doNotCopyCookies: true,
   doNotLogSecrets: true,
@@ -24,7 +26,7 @@ const DEFAULT_POLICY = Object.freeze({
     kimi: { liveAllowed: true, v2SessionReuseAllowed: true, partition: 'persist:ai-team-shared', humanApprovalRequired: true },
     deepseek: { liveAllowed: true, v2SessionReuseAllowed: false, partition: 'persist:ai-team-v3-deepseek', humanApprovalRequired: true },
     perplexity: { liveAllowed: true, v2SessionReuseAllowed: false, partition: 'persist:ai-team-v3-perplexity', humanApprovalRequired: true },
-    gemini: { liveAllowed: true, v2SessionReuseAllowed: false, partition: 'persist:ai-team-v3-gemini', humanApprovalRequired: true },
+    gemini: { liveAllowed: false, v2SessionReuseAllowed: false, partition: null, humanApprovalRequired: true },
     grok: { liveAllowed: true, v2SessionReuseAllowed: false, partition: 'persist:ai-team-v3-grok', humanApprovalRequired: true },
     zai: { liveAllowed: true, v2SessionReuseAllowed: false, partition: 'persist:ai-team-v3-zai', humanApprovalRequired: true },
     meta: { liveAllowed: true, v2SessionReuseAllowed: false, partition: 'persist:ai-team-v3-meta', humanApprovalRequired: true },
@@ -35,7 +37,7 @@ const DEFAULT_POLICY = Object.freeze({
 });
 
 const SAFE_PARTITION_PATTERN = /persist:[a-z0-9._:-]+/gi;
-const FORBIDDEN_PROVIDER_MESSAGE = 'ChatGPT/Claude live is disabled by human instruction.';
+const FORBIDDEN_PROVIDER_MESSAGE = 'ChatGPT/Claude/Gemini live is disabled by human instruction.';
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -104,10 +106,10 @@ function discoverV2SessionReferences({ v2Root = V2_ROOT, files = ['main.js', 'co
 
 function resolveProviderSessionPolicy(providerId, { policy = loadProviderSessionPolicy() } = {}) {
   const id = normalizeProviderId(providerId);
-  const providerPolicy = (policy.providerPolicies && policy.providerPolicies[id]) || {};
-  const forbidden = (policy.forbiddenLiveProviders || []).includes(id);
+  const providerPolicy = policy.providerPolicies && Object.hasOwn(policy.providerPolicies, id) ? policy.providerPolicies[id] : {};
+  const forbidden = FORBIDDEN_LIVE_PROVIDERS.includes(id) || (policy.forbiddenLiveProviders || []).includes(id);
   const reuseAllowed = Boolean(
-    policy.reuseV2Sessions === true &&
+    !forbidden && policy.reuseV2Sessions === true &&
     (policy.allowedReuseProviders || []).includes(id) &&
     providerPolicy.v2SessionReuseAllowed === true
   );
@@ -123,7 +125,7 @@ function resolveProviderSessionPolicy(providerId, { policy = loadProviderSession
     doNotCopyCookies: policy.doNotCopyCookies !== false,
     doNotLogSecrets: policy.doNotLogSecrets !== false,
     status: forbidden ? 'BLOCKED_PROVIDER_FORBIDDEN' : (liveAllowed ? 'READY_FOR_PROVIDER_DOCTOR' : 'BLOCKED_PROVIDER_NOT_ALLOWED'),
-    message: forbidden ? FORBIDDEN_PROVIDER_MESSAGE : ''
+    message: forbidden ? FORBIDDEN_PROVIDER_MESSAGE : (liveAllowed ? '' : `Provider ${id || '(missing)'} is not allowed for live automation.`)
   };
 }
 

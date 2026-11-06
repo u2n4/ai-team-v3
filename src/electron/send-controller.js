@@ -455,7 +455,13 @@ class SendController {
         providerId: provider.id,
         code: result.code || 'SEND_NOT_VERIFIED',
         message: 'Send controller could not verify prompt send.',
-        details: result
+        details: {
+          verified: result.verified,
+          code: result.code,
+          verifyReason: result.verifyReason,
+          baselineResponseCount: result.baselineResponseCount,
+          finalResponseCount: result.finalResponseCount
+        }
       });
     }
     return result;

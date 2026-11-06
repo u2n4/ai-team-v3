@@ -29,7 +29,7 @@ class TranscriptStore {
       senderName: providerName || providerId,
       target: 'all',
       text,
-      meta
+      meta: { normalizerCode: meta.normalizerCode, removedThinking: meta.removedThinking === true, hasReasoning: meta.hasReasoning === true }
     });
   }
 
@@ -49,20 +49,20 @@ class TranscriptStore {
       senderName: entry.senderName,
       target: entry.target || 'all',
       text: cleanText,
-      meta: entry.meta || {},
+      meta: structuredClone(entry.meta || {}),
       createdAt: new Date().toISOString()
     };
     this.nextTurnId += 1;
     this.entries.push(record);
-    return record;
+    return structuredClone(record);
   }
 
   list() {
-    return [...this.entries];
+    return structuredClone(this.entries);
   }
 
   publicEntries() {
-    return this.entries.filter((entry) => entry.role === 'user' || entry.role === 'ai');
+    return structuredClone(this.entries.filter((entry) => entry.role === 'user' || entry.role === 'ai'));
   }
 
   entriesAfter(turnId, { excludeSenderId } = {}) {
@@ -85,7 +85,7 @@ class TranscriptStore {
   }
 
   previousAIResponses() {
-    return this.entries.filter((entry) => entry.role === 'ai');
+    return structuredClone(this.entries.filter((entry) => entry.role === 'ai'));
   }
 
   characterLength() {

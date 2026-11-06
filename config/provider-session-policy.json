@@ -1,7 +1,14 @@
 {
   "reuseV2Sessions": true,
-  "allowedReuseProviders": ["qwen", "kimi"],
-  "forbiddenLiveProviders": ["chatgpt", "claude"],
+  "allowedReuseProviders": [
+    "qwen",
+    "kimi"
+  ],
+  "forbiddenLiveProviders": [
+    "chatgpt",
+    "claude",
+    "gemini"
+  ],
   "requireHumanConfirmationForLiveSend": true,
   "doNotCopyCookies": true,
   "doNotLogSecrets": true,
@@ -32,9 +39,9 @@
       "humanApprovalRequired": true
     },
     "gemini": {
-      "liveAllowed": true,
+      "liveAllowed": false,
       "v2SessionReuseAllowed": false,
-      "partition": "persist:ai-team-v3-gemini",
+      "partition": null,
       "humanApprovalRequired": true
     },
     "grok": {

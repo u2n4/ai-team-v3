@@ -43,14 +43,16 @@
     "dist": "electron-builder",
     "dist:win": "electron-builder --win nsis",
     "dist:dir": "electron-builder --dir",
-    "pack": "electron-builder --dir"
+    "pack": "electron-builder --dir",
+    "benchmark:ui": "node scripts/benchmark-offline-ui.js",
+    "test:electron-offline": "electron scripts/verify-electron-offline.js"
   },
   "engines": {
     "node": ">=22.12.0"
   },
   "devDependencies": {
     "electron": "^45.2.3",
-    "electron-builder": "^26.18.0"
+    "electron-builder": "^26.18.1"
   },
   "build": {
     "appId": "com.u2n4.aiteamv3",
@@ -86,6 +88,14 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "AI Team V3"
+    }
+  },
+  "overrides": {
+    "app-builder-lib": {
+      "minimatch": "^11.0.5"
+    },
+    "@electron/universal": {
+      "minimatch": "^11.0.5"
     }
   }
 }

@@ -5,6 +5,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Whitelisted discussion events the renderer may subscribe to. The listener only
 // receives the event payload (never the raw IpcRendererEvent), so the renderer cannot
 // reach back into ipcRenderer. onDiscussionEvent returns an unsubscribe function.
+const subscriptions = new Set();
+window.addEventListener('pagehide', () => { for (const unsubscribe of subscriptions) unsubscribe(); }, { once: true });
+
 const DISCUSSION_EVENTS = ['discussion:turn', 'discussion:status', 'discussion:done'];
 
 contextBridge.exposeInMainWorld('aiTeamV3', {
@@ -18,6 +21,8 @@ contextBridge.exposeInMainWorld('aiTeamV3', {
     }
     const wrapped = (_event, payload) => handler(payload);
     ipcRenderer.on(channel, wrapped);
-    return () => ipcRenderer.removeListener(channel, wrapped);
+    const unsubscribe = () => { ipcRenderer.removeListener(channel, wrapped); subscriptions.delete(unsubscribe); };
+    subscriptions.add(unsubscribe);
+    return unsubscribe;
   }
 });

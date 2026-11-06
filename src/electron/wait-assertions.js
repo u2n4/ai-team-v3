@@ -112,7 +112,7 @@ async function waitForComposerClear(readComposerText, options = {}) {
 async function waitForNoChallenge(checkChallenge, options = {}) {
   return waitForCondition(async () => {
     const result = await checkChallenge();
-    return result && result.challengeDetected ? null : { challengeDetected: false };
+    return result && result.challengeDetected === false ? { challengeDetected: false } : null;
   }, {
     timeoutMs: options.timeoutMs || 1000,
     pollMs: options.pollMs || 100,

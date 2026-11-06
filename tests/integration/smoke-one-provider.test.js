@@ -84,7 +84,7 @@ async function run() {
   }
 
   // ChatGPT/Claude are forbidden before page open and must report BLOCKED_PROVIDER_FORBIDDEN.
-  for (const forbiddenProvider of ['chatgpt', 'claude']) {
+  for (const forbiddenProvider of ['chatgpt', 'claude', 'gemini']) {
     const { reportPath, selectorReportPath } = tempReportPaths();
     const result = await assertNoSpawn((options) => runSmoke({
       ...options,
@@ -97,13 +97,13 @@ async function run() {
       selectorReportPath
     }));
     assert.equal(result.status, 'BLOCKED_PROVIDER_FORBIDDEN');
-    assert.match(fs.readFileSync(reportPath, 'utf8'), /ChatGPT\/Claude live is disabled/);
+    assert.match(fs.readFileSync(reportPath, 'utf8'), /ChatGPT\/Claude\/Gemini live is disabled/);
   }
 
   // gemini/perplexity are now live-allowed at the room level, but the one-provider SMOKE
   // gate stays limited to qwen/kimi — they must still be refused here (not forbidden, but
   // outside the smoke allowlist), and must never spawn a live process.
-  for (const wideProvider of ['gemini', 'perplexity']) {
+  for (const wideProvider of ['perplexity']) {
     const { reportPath, selectorReportPath } = tempReportPaths();
     const result = await assertNoSpawn((options) => runSmoke({
       ...options,
@@ -158,6 +158,7 @@ async function run() {
     const diagnosticsStore = new DiagnosticsStore();
     const transcriptStore = new TranscriptStore();
     const result = await executeLiveValidation({
+      sentinel: SMOKE_SENTINEL,
       provider,
       webContents: {},
       reportPath,
@@ -210,6 +211,7 @@ async function run() {
     const diagnosticsStore = new DiagnosticsStore();
     const transcriptStore = new TranscriptStore();
     const result = await executeLiveValidation({
+      sentinel: SMOKE_SENTINEL,
       provider,
       webContents: {},
       reportPath,
@@ -261,6 +263,7 @@ async function run() {
     const diagnosticsStore = new DiagnosticsStore();
     const transcriptStore = new TranscriptStore();
     const result = await executeLiveValidation({
+      sentinel: SMOKE_SENTINEL,
       provider,
       webContents: {},
       reportPath,
@@ -295,12 +298,12 @@ async function run() {
   for (const id of ['deepseek', 'grok', 'zai', 'meta', 'manus']) {
     assert.equal(SAFE_PROVIDERS.has(id), false);
   }
-  for (const id of ['chatgpt', 'claude']) {
+  for (const id of ['chatgpt', 'claude', 'gemini']) {
     assert.equal(FORBIDDEN_PROVIDERS.has(id), true);
   }
   // gemini/perplexity are no longer forbidden (room-level live-allowed), but still outside
   // the one-provider smoke SAFE_PROVIDERS allowlist.
-  for (const id of ['gemini', 'perplexity']) {
+  for (const id of ['perplexity']) {
     assert.equal(FORBIDDEN_PROVIDERS.has(id), false);
     assert.equal(SAFE_PROVIDERS.has(id), false);
   }

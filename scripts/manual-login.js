@@ -2,15 +2,14 @@
 
 /**
  * Manual login helper. Opens ONE provider in a visible window inside its V3 partition and
- * waits while YOU log in by hand. When you're done, press Enter in the terminal (or just
- * close the window) and it persists the session (cookies + localStorage stay in the
+ * waits while YOU log in by hand. When you're done, close the window and it persists the session (cookies + localStorage stay in the
  * partition; localStorage is also saved to the vault for re-injection).
  *
  * Use this for providers that didn't import cleanly (paid wall, region gate, expired
  * token) — log in once, then doctor/smoke/discussion will reuse the session.
  *
- * Allowed for any live-allowed provider (D20: all except chatgpt/claude, which are refused
- * before any page opens). E.g. qwen, kimi, gemini, perplexity, deepseek, grok, zai, meta, manus.
+ * Allowed for any live-allowed provider (D20: all except chatgpt/claude/gemini, which are refused
+ * before any page opens). E.g. qwen, kimi, perplexity, deepseek, grok, zai, meta, manus.
  *
  * Run (PowerShell):
  *   $env:AI_TEAM_V3_LIVE='1'; $env:AI_TEAM_V3_CONFIRM_SAFE_SESSION='1'
@@ -42,6 +41,7 @@ async function main() {
   if (process.env[LIVE_ENV] !== '1' || process.env[CONFIRM_ENV] !== '1') {
     console.error(`Refused. Set ${LIVE_ENV}=1 and ${CONFIRM_ENV}=1 to open a manual login window.`);
     process.exitCode = 1;
+    if (process.versions.electron) require('electron').app.exit(1);
     return;
   }
   const providerId = providerFromArgs();
@@ -52,6 +52,7 @@ async function main() {
     const known = Object.keys(DEFAULT_PROVIDER_DEFINITIONS).join(', ');
     console.error(`Pass a known provider id. Got: "${providerId}". Known: ${known}.`);
     process.exitCode = 1;
+    if (process.versions.electron) require('electron').app.exit(1);
     return;
   }
 
@@ -81,16 +82,19 @@ async function main() {
   writeStatus(`Opening ${def.name} (${def.url}). Log in by hand, then CLOSE the window to save the session.`);
   await win.loadURL(def.url).catch(() => {});
 
+  let saving = false;
   // When the user closes the window, snapshot localStorage into the vault and quit.
   win.on('close', async (e) => {
     e.preventDefault();
+    if (saving) return;
+    saving = true;
     try {
       const raw = await win.webContents.executeJavaScript(
-        '(() => { const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); o[k] = localStorage.getItem(k); } return JSON.stringify(o); })()'
-      ).catch(() => '{}');
-      let store = {};
-      try { store = JSON.parse(raw) || {}; } catch {}
+        `(() => { if (location.origin !== ${JSON.stringify(new URL(def.url).origin)}) throw new Error('Provider origin changed'); const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); o[k] = localStorage.getItem(k); } return JSON.stringify(o); })()`
+      );
+      const store = JSON.parse(raw);
       const n = saveLocalStorageVault(providerId, store);
+      if (Object.keys(store).length > 0 && n === 0) throw new Error('Encrypted vault write failed');
       writeStatus(`Saved ${providerId} session: ${n} localStorage keys (cookies persist in partition ${partition}).`);
     } catch (err) {
       writeStatus(`Session save warning: ${err.message}`);
@@ -100,7 +104,7 @@ async function main() {
   });
 }
 
-if (process.versions && process.versions.electron) {
+if (require.main === module && process.versions && process.versions.electron) {
   main().catch((error) => { writeStatus(`Manual login failed: ${error.message}`); process.exit(1); });
 } else if (require.main === module) {
   console.error('Run under Electron: npm run login -- <provider>');

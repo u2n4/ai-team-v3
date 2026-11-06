@@ -54,24 +54,12 @@ const SAFE_COMMAND = [
   'npm run smoke:one-provider'
 ].join('\n');
 
-const SECRET_PATTERNS = [
-  /(authorization|cookie|set-cookie)\s*[:=]\s*[^\s\n]+/gi,
-  /(bearer)\s+[a-z0-9._~+/=-]+/gi,
-  /((access|refresh|id)?_?token|secret|api[_-]?key|session|account[_-]?id|email)\s*[:=]\s*[^\s\n&]+/gi,
-  /([?&#](?:access_token|id_token|refresh_token|token|session|code|state|account_id|email)=)[^&#\s]+/gi
-];
+const { redactSensitiveText, redactSensitiveValue } = require('../src/core/redact');
 
 function ensureParentDir(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
-function redactSensitiveText(value) {
-  let text = String(value || '');
-  for (const pattern of SECRET_PATTERNS) {
-    text = text.replace(pattern, '$1=[REDACTED]');
-  }
-  return text;
-}
 
 function sanitizeUrl(rawUrl) {
   try {
@@ -83,7 +71,7 @@ function sanitizeUrl(rawUrl) {
 }
 
 function safeJson(value) {
-  return redactSensitiveText(JSON.stringify(value, null, 2));
+  return JSON.stringify(redactSensitiveValue(value), null, 2);
 }
 
 function writeOneProviderReport(status, details, {
@@ -218,7 +206,7 @@ function writeSelectorVerificationReport({
     '',
     `Status: ${summary.smokeCanProceed ? 'READY_FOR_ONE_PROVIDER_SMOKE' : 'BLOCKED'}`,
     `Provider tested: ${provider.id}`,
-    `URL observed: ${summary.urlObserved}`,
+    `URL observed: ${sanitizeUrl(summary.urlObserved)}`,
     `Document ready state: ${xray.readyState || '[unknown]'}`,
     '',
     '## Summary',
@@ -401,7 +389,7 @@ function writeSmokeTraceArtifact({
       limitCount: summary.limitCount,
       loginHintCount: summary.loginHintCount,
       paidWallCount: summary.paidWallCount,
-      urlObserved: summary.urlObserved
+      urlObserved: sanitizeUrl(summary.urlObserved)
     } : null,
     send: sendResult ? {
       verified: Boolean(sendResult.verified),
@@ -448,7 +436,7 @@ async function executeLiveValidation({
   reportPath = DEFAULT_REPORT_PATH,
   selectorReportPath = DEFAULT_SELECTOR_REPORT_PATH,
   promptText,
-  sentinel = SMOKE_SENTINEL,
+  sentinel = makeSmokeNonce(),
   selectorVerification,
   sendController,
   lifecycleMonitor,
@@ -460,7 +448,7 @@ async function executeLiveValidation({
 }) {
   // The reply must echo `sentinel`. Real runs pass a per-run nonce; the prompt is
   // derived from it unless the caller supplied an explicit promptText (tests).
-  const effectiveSentinel = sentinel || SMOKE_SENTINEL;
+  const effectiveSentinel = sentinel || makeSmokeNonce();
   const effectivePromptText = promptText || livePromptFor(effectiveSentinel) || provider.safeFirstPrompt;
   let summary;
   let tracePath;

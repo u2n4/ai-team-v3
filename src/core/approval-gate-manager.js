@@ -118,7 +118,7 @@ class ApprovalGateManager {
   }
 
   evaluate(gateId, { env = this.env, uiApproved = false, offline = false } = {}) {
-    const gate = APPROVAL_GATES[gateId];
+    const gate = Object.hasOwn(APPROVAL_GATES, gateId) ? APPROVAL_GATES[gateId] : null;
     if (!gate) {
       return {
         ok: false,
@@ -153,7 +153,7 @@ class ApprovalGateManager {
       };
     }
 
-    if (offline === true && gate.live === false) {
+    if (offline === true && gate.live === false && gate.risk === 'low') {
       return {
         ok: true,
         gateId,

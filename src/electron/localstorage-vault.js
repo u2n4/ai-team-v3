@@ -23,7 +23,8 @@ const VAULT_DIR = path.join(__dirname, '..', '..', '.tmp', 'ls-vault');
 const ENCRYPTED_VAULT_VERSION = 2;
 
 function vaultPathFor(providerId) {
-  const safe = String(providerId || '').replace(/[^a-z0-9_-]/gi, '');
+  const safe = String(providerId || '');
+  if (!/^[a-z0-9_-]+$/i.test(safe)) throw new Error('Invalid vault provider id.');
   return path.join(VAULT_DIR, `${safe}.json`);
 }
 
@@ -34,7 +35,8 @@ function getSafeStorage() {
       electron &&
       electron.safeStorage &&
       typeof electron.safeStorage.isEncryptionAvailable === 'function' &&
-      electron.safeStorage.isEncryptionAvailable()
+      electron.safeStorage.isEncryptionAvailable() &&
+      (!electron.safeStorage.getSelectedStorageBackend || electron.safeStorage.getSelectedStorageBackend() !== 'basic_text')
     ) {
       return electron.safeStorage;
     }
@@ -74,7 +76,7 @@ function encodeVault(store) {
   });
 }
 
-function decodeVault(raw) {
+function decodeVault(raw, { allowLegacy = false } = {}) {
   const parsed = JSON.parse(raw);
   if (
     parsed &&
@@ -88,10 +90,10 @@ function decodeVault(raw) {
     const store = JSON.parse(decrypted);
     return store && typeof store === 'object' ? store : null;
   }
-  if (parsed && parsed.version === 1 && parsed.encoding === 'plain-json') {
+  if (allowLegacy && parsed && parsed.version === 1 && parsed.encoding === 'plain-json') {
     return parsed.data && typeof parsed.data === 'object' ? parsed.data : null;
   }
-  return parsed && typeof parsed === 'object' ? parsed : null;
+  return allowLegacy && parsed && typeof parsed === 'object' && !Array.isArray(parsed) && !('version' in parsed) ? parsed : null;
 }
 
 /** Save a provider's localStorage map to its vault file. Returns the key count written. */
@@ -109,10 +111,10 @@ function saveLocalStorageVault(providerId, store) {
 }
 
 /** Load a provider's vault, or null if none exists. */
-function loadLocalStorageVault(providerId) {
+function loadLocalStorageVault(providerId, options) {
   try {
     const raw = fs.readFileSync(vaultPathFor(providerId), 'utf8');
-    return decodeVault(raw);
+    return decodeVault(raw, options);
   } catch {
     return null;
   }
@@ -133,11 +135,11 @@ function clearLocalStorageVault(providerId) {
  * webContents.executeJavaScript on the provider page (same origin) after first load.
  * Only sets keys that are not already present unless overwrite is true.
  */
-function buildInjectionScript(store, { overwrite = true } = {}) {
+function buildInjectionScript(store, { overwrite = true, expectedOrigin } = {}) {
   const payload = JSON.stringify(Object.entries(store || {}));
   return `(() => {
     try {
-      if (!location.origin || location.origin === 'null') return 0;
+      if (!location.origin || location.origin === 'null' || location.origin !== ${JSON.stringify(expectedOrigin || '')}) return 0;
       const entries = ${payload};
       const overwrite = ${overwrite ? 'true' : 'false'};
       let n = 0;

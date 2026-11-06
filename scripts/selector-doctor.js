@@ -28,24 +28,12 @@ const SAFE_DOCTOR_COMMAND = 'npm run doctor:provider -- qwen';
 // human must explicitly opt in — mirroring smoke-one-provider.js.
 const LIVE_ENV = 'AI_TEAM_V3_LIVE';
 const CONFIRM_ENV = 'AI_TEAM_V3_CONFIRM_SAFE_SESSION';
-const SECRET_PATTERNS = [
-  /(authorization|cookie|set-cookie)\s*[:=]\s*[^\s\n]+/gi,
-  /(bearer)\s+[a-z0-9._~+/=-]+/gi,
-  /((access|refresh|id)?_?token|secret|api[_-]?key|session|account[_-]?id|email)\s*[:=]\s*[^\s\n&]+/gi,
-  /([?&#](?:access_token|id_token|refresh_token|token|session|code|state|account_id|email)=)[^&#\s]+/gi
-];
+const { redactSensitiveText, redactSensitiveValue } = require('../src/core/redact');
 
 function ensureParentDir(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
-function redactSensitiveText(value) {
-  let text = String(value || '');
-  for (const pattern of SECRET_PATTERNS) {
-    text = text.replace(pattern, '$1[REDACTED]');
-  }
-  return text;
-}
 
 function sanitizeUrl(rawUrl) {
   try {
@@ -202,7 +190,7 @@ function writeSelectorVerificationReport({
     '',
     `Status: ${summary.smokeCanProceed ? 'READY_FOR_ONE_PROVIDER_SMOKE' : 'BLOCKED'}`,
     `Provider tested: ${provider.id}`,
-    `URL observed: ${summary.urlObserved}`,
+    `URL observed: ${sanitizeUrl(summary.urlObserved)}`,
     `Document ready state: ${xray.readyState || '[unknown]'}`,
     '',
     '## Summary',
@@ -286,7 +274,7 @@ function writeSelectorTraceArtifact({
     kind: 'selector-doctor',
     providerId: provider.id,
     createdAt: new Date().toISOString(),
-    urlObserved: summary.urlObserved,
+    urlObserved: sanitizeUrl(summary.urlObserved),
     readyState: xray.readyState,
     summary,
     selectorCounts: xray.selectorCounts || {},
@@ -302,7 +290,7 @@ function writeSelectorTraceArtifact({
     }
   };
   const filePath = path.join(traceDir, traceFileName(provider.id, summary.code));
-  fs.writeFileSync(filePath, redactSensitiveText(JSON.stringify(artifact, null, 2)), 'utf8');
+  fs.writeFileSync(filePath, JSON.stringify(redactSensitiveValue(artifact), null, 2), 'utf8');
   return filePath;
 }
 

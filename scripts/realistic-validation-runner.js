@@ -13,6 +13,7 @@ const { QuotaGuard } = require('../src/core/quota-guard');
 const { ProviderHealthStore } = require('../src/core/provider-health');
 const { BaseProvider } = require('../src/providers/base-provider');
 const { analyzeRun } = require('../src/core/run-analyzer');
+const { detectTranscriptContamination } = require('../src/core/problem-detector');
 const { STANDARD_MODES, validateModeSpecificAcceptance } = require('../src/core/mode-definitions');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -404,6 +405,19 @@ async function runEndurance30({ reportPath } = {}) {
 }
 
 async function runChaosValidation({ iterations = 50, seed = 1337 } = {}) {
+  if (!Number.isSafeInteger(iterations) || iterations < 1 || iterations > 1000 || !Number.isSafeInteger(seed)) throw new TypeError('Invalid chaos iterations or seed');
+  const { FakeProvider, FAKE_PROVIDER_MODES } = require('../src/providers/fake-provider');
+  let random = seed >>> 0;
+  const sampledModes = [];
+  const sampleFailures = [];
+  for (let i = 0; i < iterations; i++) {
+    random = (Math.imul(random, 1664525) + 1013904223) >>> 0;
+    const mode = FAKE_PROVIDER_MODES[random % FAKE_PROVIDER_MODES.length];
+    sampledModes.push(mode);
+    const providers = [new FakeProvider({ id: 'healthy', delayMs: 0 }), new FakeProvider({ id: 'adversary', mode, delayMs: 0, timeoutMs: 5 })];
+    const sample = await new Orchestrator({ providers }).run({ userMessage: 'Seeded offline chaos sample ' + i });
+    if (!sample.transcript.some(entry => entry.senderId === 'healthy') || detectTranscriptContamination(sample.transcript).length) sampleFailures.push(i);
+  }
   const { report, analysis } = await runEndurance30();
   const diagnostics = report.diagnostics.map((entry) => entry.code);
   const expectedCodes = [
@@ -425,10 +439,12 @@ async function runChaosValidation({ iterations = 50, seed = 1337 } = {}) {
   ];
   const missing = expectedCodes.filter((code) => !diagnostics.includes(code));
   return {
-    ok: analysis.ok && missing.length === 0,
-    status: analysis.ok && missing.length === 0 ? 'PASS' : 'FAIL',
+    ok: analysis.ok && missing.length === 0 && sampleFailures.length === 0,
+    status: analysis.ok && missing.length === 0 && sampleFailures.length === 0 ? 'PASS' : 'FAIL',
     seed,
     iterations,
+    sampledModes,
+    sampleFailures,
     expectedCodes,
     missing,
     analysis

@@ -155,8 +155,9 @@ async function chaosSeed(seed) {
     [modes[i], modes[j]] = [modes[j], modes[i]];
   }
   const STALE_TEXT = 'Reusable stale answer that a later provider will echo verbatim.';
-  const providers = ids.map((id, i) => {
-    const mode = i === 0 ? 'clean' : modes[i % modes.length];
+  const scenarioModes = ['clean', ...modes, 'duplicateStale'];
+  const providers = scenarioModes.map((mode, i) => {
+    const id = `stress${i}`;
     return new FakeProvider({
       id,
       name: providerName(id),
@@ -166,8 +167,8 @@ async function chaosSeed(seed) {
   });
   // Force one provider into duplicateStale to guarantee the stale path fires.
   providers[providers.length - 1] = new FakeProvider({
-    id: ids[ids.length - 1],
-    name: providerName(ids[ids.length - 1]),
+    id: `stress${providers.length - 1}`,
+    name: 'Stale provider',
     mode: 'duplicateStale'
   });
   const orchestrator = makeStressOrchestrator(providers);
@@ -180,6 +181,7 @@ async function chaosSeed(seed) {
   const presentModes = providers.map((p) => p.mode);
 
   for (const mode of Object.keys(MODE_EXPECTED_CODE)) {
+    check(`R2[seed ${seed}] mode ${mode} exercised`, presentModes.includes(mode));
     if (presentModes.includes(mode)) {
       check(`R2[seed ${seed}] mode ${mode} -> ${MODE_EXPECTED_CODE[mode]}`,
         codes.has(MODE_EXPECTED_CODE[mode]), `codes=${[...codes].join(',')}`);
@@ -231,8 +233,8 @@ async function roundChaos() {
 async function roundFailureIsolation() {
   console.log('\n[R3] Failure isolation + 3-strike disable');
   const broken = new FakeProvider({ id: 'qwen', name: 'Qwen', mode: 'errorPage' });
-  const healthy = new FakeProvider({ id: 'kimi', name: 'Kimi', mode: 'clean', responseText: 'Kimi continues safely.' });
-  const slow = new FakeProvider({ id: 'deepseek', name: 'DeepSeek', mode: 'delayed', responseText: 'DeepSeek continues safely.' });
+  const healthy = new FakeProvider({ id: 'kimi', name: 'Kimi continues safely', mode: 'clean' });
+  const slow = new FakeProvider({ id: 'deepseek', name: 'DeepSeek continues safely', mode: 'delayed' });
   const orchestrator = makeStressOrchestrator([broken, healthy, slow]);
   const report = await orchestrator.run({
     userMessage: '[ROUND 1] failure isolation pressure.',
@@ -261,9 +263,9 @@ async function roundAllModes() {
   console.log('\n[R4] All 12 STANDARD_MODES under load');
   for (const mode of STANDARD_MODES) {
     const providers = [
-      new FakeProvider({ id: 'qwen', name: 'Qwen', mode: 'clean', responseText: `${mode.id} qwen stable answer.` }),
-      new FakeProvider({ id: 'kimi', name: 'Kimi', mode: 'clean', responseText: `${mode.id} kimi stable answer.` }),
-      new FakeProvider({ id: 'gemini', name: 'Gemini', mode: 'clean', responseText: `${mode.id} gemini stable answer.` }),
+      new FakeProvider({ id: 'qwen', name: 'Qwen', mode: 'clean' }),
+      new FakeProvider({ id: 'kimi', name: 'Kimi', mode: 'clean' }),
+      new FakeProvider({ id: 'gemini', name: 'Gemini', mode: 'clean' }),
       new FakeProvider({ id: 'deepseek', name: 'DeepSeek', mode: 'errorPage' })
     ];
     const orchestrator = makeStressOrchestrator(providers);

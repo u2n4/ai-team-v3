@@ -7,6 +7,7 @@ function cssStringList(selectors) {
 class DomCapture {
   constructor({ webContents }) {
     this.webContents = webContents;
+    this.captureState = new Map();
   }
 
   // Scrape the model name the provider is currently running, from the model switcher /
@@ -57,7 +58,7 @@ class DomCapture {
           let n = 0;
           for (const el of document.querySelectorAll(${JSON.stringify(selector)})) {
             const s = window.getComputedStyle(el);
-            if (s.display !== 'none' && s.visibility !== 'hidden' && el.offsetParent !== null) n++;
+            if (s.display !== 'none' && s.visibility !== 'hidden' && el.getClientRects().length > 0) n++;
           }
           return n;
         } catch (_error) { return 0; }
@@ -66,7 +67,7 @@ class DomCapture {
   }
 
   async captureLatest({ id = 'provider', responseSelectors = [], thinkingSelectors = [], stabilityMs = 0 }) {
-    return this.webContents.executeJavaScript(`
+    const captured = await this.webContents.executeJavaScript(`
       (() => {
         const providerId = ${JSON.stringify(id)};
         const responseSelectors = ${cssStringList(responseSelectors)};
@@ -152,24 +153,23 @@ class DomCapture {
                 if (precedesOrContains) best = tn; // keep the latest such node (array is in DOM order)
               } catch (_e) {}
             }
-            if (best) chosen = best;
+            chosen = best;
           }
-          reasoning = (chosen.innerText || chosen.textContent || '').trim();
+          reasoning = chosen ? (chosen.innerText || chosen.textContent || '').trim() : '';
         }
-        window.__aiTeamV3CaptureState = window.__aiTeamV3CaptureState || {};
-        const previous = window.__aiTeamV3CaptureState[providerId] || { text: '', changedAt: Date.now() };
-        const changedAt = previous.text === latest.text ? previous.changedAt : Date.now();
-        window.__aiTeamV3CaptureState[providerId] = { text: latest.text, changedAt };
-        const stableForMs = Date.now() - changedAt;
         return {
-          ...latest,
+          selector: latest.selector, text: latest.text,
           reasoning,
           stabilityMs,
-          stableForMs,
-          stable: !latest.text || stabilityMs <= 0 || stableForMs >= stabilityMs
+          stable: false
         };
       })();
     `);
+    const previous = this.captureState.get(id);
+    const changedAt = previous && previous.text === captured.text ? previous.changedAt : Date.now();
+    this.captureState.set(id, { text: captured.text, changedAt });
+    const stableForMs = Date.now() - changedAt;
+    return { ...captured, stableForMs, stable: !captured.text || stabilityMs <= 0 || stableForMs >= stabilityMs };
   }
 
   async xray(provider) {

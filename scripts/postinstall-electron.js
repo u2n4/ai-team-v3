@@ -41,7 +41,7 @@ function isHealthy(electronDir, platform) {
   // A valid extraction is tens/hundreds of MB; guard against a truncated stub.
   try {
     const { size } = fs.statSync(exe);
-    if (platform === 'win32' && size < 1_000_000) return false;
+    if (size < 1_000_000) return false;
   } catch {
     return false;
   }
@@ -93,7 +93,7 @@ function extractZip(zip, destDir) {
     execFileSync(
       'powershell',
       ['-NoProfile', '-NonInteractive', '-Command',
-       `Expand-Archive -LiteralPath '${zip}' -DestinationPath '${destDir}' -Force`],
+       `Expand-Archive -LiteralPath '${zip.replaceAll("'", "''")}' -DestinationPath '${destDir.replaceAll("'", "''")}' -Force`],
       { stdio: 'ignore' }
     );
   } else {
@@ -102,7 +102,7 @@ function extractZip(zip, destDir) {
 }
 
 function main() {
-  const platform = process.platform;
+  const platform = process.env.npm_config_platform || process.platform;
   let electronDir;
   try {
     // Resolve the installed electron package next to this project.
@@ -113,6 +113,7 @@ function main() {
   }
 
   if (isHealthy(electronDir, platform)) {
+    fs.writeFileSync(path.join(electronDir, 'path.txt'), expectedExecutable(platform));
     log('electron binary present — OK.');
     return;
   }
@@ -127,7 +128,7 @@ function main() {
     return;
   }
 
-  const arch = process.arch; // x64 / arm64 / ...
+  const arch = process.env.npm_config_arch || process.arch; // x64 / arm64 / ...
   const zipName = `electron-v${version}-${platform}-${arch}.zip`;
   const zip = findCachedZip(zipName);
 
@@ -166,4 +167,4 @@ try {
   // Never break `npm install`.
   log(`unexpected error, skipping (${err && err.message}).`);
 }
-process.exit(0);
+

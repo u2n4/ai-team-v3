@@ -134,11 +134,11 @@ function renderDiscussionPanel(state) {
   controls.appendChild(prompt);
 
   // Provider checkboxes — only live-eligible providers; default the reliable ones on.
-  const RELIABLE = new Set(['gemini', 'grok', 'qwen', 'kimi', 'deepseek']);
+  const RELIABLE = new Set(['grok', 'qwen', 'kimi', 'deepseek']);
   const picks = el('div', 'disc-picks');
   const checkboxes = [];
   for (const provider of state.providers) {
-    if (!provider.liveEnabled) continue;
+    if (!provider.liveEnabled || provider.forbiddenLiveProvider || ['chatgpt', 'claude', 'gemini'].includes(provider.id)) continue;
     const label = el('label', 'disc-pick');
     const cb = document.createElement('input');
     cb.type = 'checkbox';
@@ -211,7 +211,11 @@ function renderDiscussionPanel(state) {
     statusLine.textContent = 'Running…';
 
     unsubscribers.push(window.aiTeamV3.onDiscussionEvent('discussion:status', (p) => {
-      statusLine.textContent = p.joined ? `joined ${p.providerId}` : `skipped ${p.providerId} (${p.reason})`;
+      statusLine.textContent = p.state ? `${p.providerId}: ${p.state}${p.message ? ' — ' + p.message : ''}` : (p.joined ? `joined ${p.providerId}` : `skipped ${p.providerId} (${p.message || p.reason})`);
+      if (p.message || p.joined === false) {
+        const failure = el('div', 'conv-turn status bad', `${p.providerId}: ${p.state || p.reason} — ${p.message || 'Provider unavailable.'}`);
+        live.appendChild(failure);
+      }
     }));
     unsubscribers.push(window.aiTeamV3.onDiscussionEvent('discussion:turn', appendTurn));
     unsubscribers.push(window.aiTeamV3.onDiscussionEvent('discussion:done', (p) => {
@@ -233,12 +237,13 @@ function renderDiscussionPanel(state) {
         cleanup();
       }
     } catch (err) {
-      statusLine.textContent = 'Start failed.';
+      statusLine.textContent = `Discussion failed: ${String(err && err.message || 'Bridge unavailable')}`;
       startBtn.disabled = false;
       cleanup();
     }
   });
 
+  window.addEventListener('pagehide', cleanup, { once: true });
   return panel;
 }
 
@@ -352,6 +357,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (!window.aiTeamV3 || !window.aiTeamV3.getDashboardState) {
     return;
   }
-  const state = await window.aiTeamV3.getDashboardState();
-  renderDashboard(state);
+  try {
+    const state = await window.aiTeamV3.getDashboardState();
+    renderDashboard(state);
+  } catch (error) {
+    document.getElementById('app').textContent = `Dashboard unavailable: ${String(error && error.message || 'Unknown error')}`;
+  }
 });

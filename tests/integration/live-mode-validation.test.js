@@ -57,7 +57,7 @@ async function run() {
     });
     // 2026-06-21 (D20): gemini is no longer forbidden, but it is not on the live-ladder
     // allowlist (still gated to qwen/kimi), so the ladder refuses with NOT_ALLOWED, not FORBIDDEN.
-    assert.equal(result.status, 'BLOCKED_PROVIDER_NOT_ALLOWED');
+    assert.equal(result.status, 'BLOCKED_PROVIDER_FORBIDDEN');
   }
 
   {

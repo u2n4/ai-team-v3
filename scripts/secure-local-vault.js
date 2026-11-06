@@ -33,7 +33,7 @@ async function main() {
   const { app, safeStorage } = require('electron');
   await app.whenReady();
 
-  if (!safeStorage || !safeStorage.isEncryptionAvailable()) {
+  if (!safeStorage || !safeStorage.isEncryptionAvailable() || (safeStorage.getSelectedStorageBackend && safeStorage.getSelectedStorageBackend() === 'basic_text')) {
     console.error('Vault encryption is not available in this Electron session.');
     process.exitCode = 1;
     app.quit();
@@ -51,10 +51,11 @@ async function main() {
   let secured = 0;
   for (const providerId of targets) {
     const filePath = vaultPathFor(providerId);
-    const store = loadLocalStorageVault(providerId);
+    const store = loadLocalStorageVault(providerId, { allowLegacy: true });
     if (!store || Object.keys(store).length === 0) {
       if (fs.existsSync(filePath)) restrictVaultFile(filePath);
-      console.log(`${providerId}: no readable keys`);
+      console.log(`${providerId}: vault missing, unreadable, or empty`);
+      process.exitCode = 1;
       continue;
     }
     const count = saveLocalStorageVault(providerId, store);
@@ -63,6 +64,7 @@ async function main() {
       console.log(`${providerId}: secured ${count} localStorage keys`);
     } else {
       console.log(`${providerId}: not secured`);
+      process.exitCode = 1;
     }
   }
 
@@ -70,7 +72,7 @@ async function main() {
   app.quit();
 }
 
-if (process.versions && process.versions.electron) {
+if (require.main === module && process.versions && process.versions.electron) {
   main().catch((error) => {
     console.error(`Vault secure failed: ${error.message}`);
     process.exit(1);

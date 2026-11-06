@@ -9,6 +9,9 @@ async function main() {
     userMessage: 'Run a fake room smoke discussion.',
     cycles: 4
   });
+  const expected = providers.length * 4;
+  const actual = report.transcript.filter(entry => entry.role === 'ai').length;
+  if (actual !== expected || report.diagnostics.length) throw new Error(`Offline smoke captured ${actual}/${expected} turns with ${report.diagnostics.length} diagnostics`);
   console.log(JSON.stringify({
     aiResponses: report.transcript.filter((entry) => entry.role === 'ai').length,
     diagnostics: report.diagnostics.length,

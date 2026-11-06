@@ -9,6 +9,8 @@ async function run() {
   assert.equal(result.missing.length, 0);
   assert.equal(result.iterations, 50);
   assert.equal(result.seed, 1337);
+  assert.equal(result.sampledModes.length, 50);
+  assert.deepEqual(result.sampleFailures, []);
   console.log('PASS chaos validation: seeded adversarial diagnostics are exercised and rejected safely');
 }
 
