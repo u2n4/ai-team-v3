@@ -33,6 +33,10 @@ const { DomCapture } = require('../src/electron/dom-capture');
 const { classifyProviderHealth } = require('../src/core/provider-health-classifier');
 
 async function run() {
+  const { redactSensitiveText } = require('../src/core/redact');
+  assert.equal(redactSensitiveText('Cookie: theme=dark; sid=CANARY'), 'Cookie: [REDACTED]');
+  assert.equal(redactSensitiveText('Authorization: Digest username="a", response="CANARY"'), 'Authorization: [REDACTED]');
+  assert.equal(redactSensitiveText('{"cookie":"sid=CANARY","ok":1}'), '{"cookie":"[REDACTED]","ok":1}');
   const failedProbe = classifyProviderHealth({ error: 'ERR_NAME_NOT_RESOLVED token=private-canary' });
   assert.equal(failedProbe.verdict, 'UNKNOWN');
   assert.ok(failedProbe.reason.includes('ERR_NAME_NOT_RESOLVED'));
