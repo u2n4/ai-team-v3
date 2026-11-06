@@ -6,6 +6,7 @@
 // store raw prompt/response bodies; redact what little free text must be kept.
 const SECRET_KEY = /cookie|authorization|token|secret|api[_-]?key|session(?:[_-]?id)?|account[_-]?id|email/i;
 const SECRET_PATTERNS = [
+  /(\b(?:authorization|set-cookie|cookie)\s*[:=]\s*)([^"'\r\n][^\r\n]*)/gi,
   /(["']?(?:authorization|set-cookie|cookie)["']?\s*[:=]\s*)("[^"\r\n]*"|'[^'\r\n]*'|[^\r\n,;}\]]+)/gi,
   /(["']?(?:(?:access|refresh|id)[_-]?)?token["']?\s*[:=]\s*|["']?(?:secret|client[_-]?secret|api[_-]?key|session(?:[_-]?id)?|account[_-]?id|email)["']?\s*[:=]\s*)("[^"\r\n]*"|'[^'\r\n]*'|[^\s,;&}\]\r\n]+)/gi
 ];
@@ -21,6 +22,7 @@ function redactSensitiveText(value) {
   });
   for (const pattern of SECRET_PATTERNS) {
     text = text.replace(pattern, (_match, prefix, secret) => {
+      if (secret.startsWith('[REDACTED]')) return _match;
       const quote = /^["']/.test(secret) ? secret[0] : '';
       return `${prefix}${quote}[REDACTED]${quote}`;
     });
