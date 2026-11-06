@@ -49,6 +49,7 @@ async function run() {
     'Cookie: [REDACTED]; sid=CANARY',
     'Cookie:"a"; sid=CANARY',
     'Cookie:"a" sid=CANARY',
+    'a@b.com-CANARY@example.com',
     'X-Api-Key: first, CANARY',
     'X-Cookie-Info: CANARY',
     '{"\\u0063ookie":"CANARY",',
