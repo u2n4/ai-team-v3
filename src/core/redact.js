@@ -10,6 +10,17 @@ const SECRET_PATTERNS = [
   /(["']?(?:(?:access|refresh|id)[_-]?)?token["']?\s*[:=]\s*|["']?(?:secret|client[_-]?secret|api[_-]?key|session(?:[_-]?id)?|account[_-]?id|email)["']?\s*[:=]\s*)("(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'|[^\s,;&}\]\r\n]+)/gi
 ];
 
+function redactUrls(text) {
+  return text.replace(/https?:\/\/[^\s<>"']+/gi, (raw) => {
+    if (raw.includes('\\')) return '[REDACTED-URL]';
+    try {
+      const url = new URL(raw);
+      url.username = ''; url.password = ''; url.search = url.search ? '?redacted=1' : ''; url.hash = '';
+      return url.toString();
+    } catch { return '[REDACTED-URL]'; }
+  });
+}
+
 function redactSensitiveText(value) {
   let text = String(value ?? '');
   if (/^\s*[[{]/.test(text)) {
@@ -20,19 +31,13 @@ function redactSensitiveText(value) {
       if (!(error instanceof SyntaxError)) return '[REDACTED]';
     }
   }
-  text = text.replace(/https?:\/\/[^\s<>"']+/gi, (raw) => {
-    try {
-      const url = new URL(raw);
-      url.username = ''; url.password = ''; url.search = url.search ? '?redacted=1' : ''; url.hash = '';
-      return url.toString();
-    } catch { return '[REDACTED-URL]'; }
-  });
-  // A key hidden behind JSON escapes must still match the patterns below. Decode after the
-  // URL pass: a decoded apostrophe would otherwise end a URL before its query.
-  text = text.replace(/\\u([0-9a-f]{4})/gi, (raw, hex) => {
+  // URLs are scrubbed on both sides of decoding: escapes can hide a URL's scheme, and a decoded
+  // character can end a URL early. Any URL holding an escape is dropped whole.
+  text = redactUrls(text).replace(/\\u([0-9a-f]{4})/gi, (raw, hex) => {
     const char = String.fromCharCode(parseInt(hex, 16));
     return /^[!#$%&'*+.^_\x60|~0-9A-Za-z-]$/.test(char) ? char : raw;
   });
+  text = redactUrls(text);
   for (const pattern of SECRET_PATTERNS) {
     text = text.replace(pattern, (_match, prefix, secret) => {
       if (/^\[REDACTED(?:-URL)?\]?$/.test(secret.replace(/^["']|["']$/g, ''))) return _match;
