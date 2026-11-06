@@ -24,6 +24,17 @@ async function run() {
   });
   assert.equal(goodAnalysis.ok, true);
 
+  for (const quota of [
+    { providerId: 'qwen', consecutiveFailures: 3, disabledForRun: false },
+    { providerId: 'qwen', limitDetected: true, disabledForRun: false }
+  ]) {
+    const analysis = analyzeRun({ ...good, quota: [quota] });
+    assert.equal(analysis.checks.find(check => check.id === 'quota-failure-tracking').status, 'FAIL');
+    assert.equal(analyzeRun({ ...good, quota: [{ ...quota, disabledForRun: true }] }).ok, true);
+  }
+  assert.equal(analyzeRun({ ...good, quota: [{ consecutiveFailures: 1 }] }).ok, true);
+  assert.equal(analyzeRun({ ...good, quota: [{ consecutiveFailures: 2 }] }, { maxConsecutiveFailures: 2 }).ok, false);
+
   const bad = {
     transcript: [
       { turnId: 1, role: 'user', senderId: 'user', text: '[ROUND 1] Human objective contract' },
@@ -44,6 +55,7 @@ async function run() {
   });
   assert.equal(badAnalysis.ok, false);
   assert.equal(badAnalysis.checks.some((check) => check.status === 'FAIL'), true);
+  assert.ok(badAnalysis.problems.some(problem => problem.code === 'UI_CHROME_LEAK'));
   console.log('PASS run analyzer: known-good reports pass and shallow contaminated reports fail');
 }
 

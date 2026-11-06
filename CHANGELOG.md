@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased] — 2026-11-06 final offline round
+
+### Security and reliability
+- Kept ChatGPT, Claude and Gemini forbidden across runtime policy, settings, IPC, uploads and UI, including attempts to override local policy.
+- Confined the dashboard bridge to its exact local top-level frame; blocked external navigation and popups. Preserved sandboxing, context isolation, encrypted-only runtime vaults and all approval gates.
+- Hardened URL/JSON/session redaction, metadata-only diagnostics, origin checks, staged file uploads and verified loopback Edge import. Removed page-body xray previews and raw discussion prompt/answer status logs.
+- Added provider send/response deadlines, closed-view detection and readable UI failure states so healthy providers can continue. Released view/listener/timer resources; fixed Electron entry/import detection for login and vault utilities without running either live.
+- Fixed quota analysis that always passed, retained sanitized probe error causes, retried only transient navigation-frame failures, and strengthened rejected-body privacy checks and offline failure reporting.
+
+### Dependencies and responsiveness
+- Updated `electron-builder` to `^26.18.1`; retained current Electron `^45.2.3`. Both GitHub Actions use their newest major (`checkout@v7`, `setup-node@v7`).
+- Resolved the six moderate minimatch audit entries with range-specific `^11.0.5` overrides for vulnerable 9/10 callers. Corrected the inherited broad override, which left `npm ls` invalid; callable 3.x/5.x consumers retain patched compatible APIs. Clean `npm ci`, `npm ls` and Windows packaging pass.
+- Replaced dashboard hot-path synchronous disk reads with batched async/coalesced loading; bounded trace retention and used turn notifications instead of transcript polling.
+- Offline 1,200-file fixture, five alternating warm trials: median dashboard load **929.49 → 278.31 ms**, median maximum heartbeat gap **930.34 → 6.06 ms**, synchronous filesystem calls **1,229 → 0**. These are local fixture measurements, not live-provider latency claims.
+
+### Verification
+- `npm test`: **43/43**; offline endurance/modes/chaos, stress suite and all five orchestration benchmark scenarios pass. Both full and production `npm audit`: **0 vulnerabilities**.
+- Real Electron **45.2.3** offline dashboard opened with **11 provider cards**, **0 console/preload/runtime errors**, **0 external requests**, and forbidden-roster rejection. A fresh isolated profile and normal Windows access were required for OS crypto/AppContainer startup; Electron sandbox settings stayed enabled.
+- Windows NSIS build passes; installer remains unsigned. Live providers, login, real uploads/cookie import and external selectors remain unverified and were not run.
+- Recorded all **321** fleet cluster decisions and raw evidence pointers in [the final review](docs/FINAL_ROUND_FLEET_REVIEW.md): **183 applied/resolved, 138 rejected**, including prior-run fixes. No commits, pushes or tags were made by this continuation.
+
 ## [Unreleased] — 2026-11-05
 
 ### Changed

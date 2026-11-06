@@ -8,9 +8,9 @@ const { app, BrowserWindow, session } = require('electron');
 const root = path.resolve(__dirname, '..');
 const output = path.join(root, '.tmp', 'final-round');
 fs.mkdirSync(output, { recursive: true });
-app.setPath('userData', path.join(output, 'electron-profile'));
+app.setPath('userData', fs.mkdtempSync(path.join(output, 'electron-profile-')));
 app.commandLine.appendSwitch('disable-background-networking');
-const result = { electron: process.versions.electron, entrypointIsMain: require.main === module, consoleErrors: [], preloadErrors: [], runtimeErrors: [], externalRequests: 0 };
+const result = { createdAt: new Date().toISOString(), electron: process.versions.electron, entrypointIsMain: require.main === module, consoleErrors: [], preloadErrors: [], runtimeErrors: [], externalRequests: 0 };
 let completed = false;
 function finish(code) {
   if (completed) return;

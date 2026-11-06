@@ -42,7 +42,7 @@ async function run() {
 if (require.main === module) {
   run().catch((error) => {
     console.error(error);
-    process.exit(1);
+    process.exitCode = 1;
   });
 }
 

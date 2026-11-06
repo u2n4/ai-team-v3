@@ -7,6 +7,7 @@ async function main() {
   console.log(`modes:test ${result.status}`);
   for (const entry of result.modeReports) {
     console.log(`${entry.analysis.status} ${entry.mode.id}: ${entry.analysis.metrics.aiTurns} accepted AI turns`);
+    for (const check of entry.analysis.checks.filter(check => check.status === 'FAIL')) console.error(`${entry.mode.id}: ${check.id}: ${check.message}`);
   }
   process.exitCode = result.ok ? 0 : 1;
 }
@@ -14,7 +15,7 @@ async function main() {
 if (require.main === module) {
   main().catch((error) => {
     console.error(error);
-    process.exit(1);
+    process.exitCode = 1;
   });
 }
 

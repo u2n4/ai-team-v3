@@ -1,5 +1,7 @@
 'use strict';
 
+const { redactSensitiveText } = require('./redact');
+
 // Pure classifier that turns observed page/send/capture signals into a clear provider
 // HEALTH VERDICT, so the room and the Selector Doctor can tell whether a provider is
 // working or broken — and WHY — instead of just timing out. No DOM/Electron here: callers
@@ -39,6 +41,7 @@ function isBrokenVerdict(verdict) {
  *  - slowSendThresholdMs (num)   above this, a working provider is flagged READY_SLOW (default 8000)
  */
 function classifyProviderHealth(signals = {}) {
+  if (signals.error) return { verdict: HEALTH.UNKNOWN, broken: true, reason: `Provider probe failed: ${redactSensitiveText(signals.error)}` };
   const {
     composerFound = false,
     challengeText = false,

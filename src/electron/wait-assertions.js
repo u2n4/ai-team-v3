@@ -16,7 +16,13 @@ async function waitForCondition(check, {
   const startedAt = Date.now();
   let lastResult;
   while (Date.now() - startedAt <= timeoutMs) {
-    lastResult = await check();
+    try { lastResult = await check(); }
+    catch (error) {
+      if (!/execution context was destroyed|render frame was disposed|frame (?:was )?disposed|ERR_ABORTED/i.test(error.message || '')) throw error;
+      lastResult = { transientError: error.code || 'FRAME_NAVIGATING' };
+      await new Promise(resolve => setTimeout(resolve, pollMs));
+      continue;
+    }
     if (lastResult) {
       return lastResult;
     }

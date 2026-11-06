@@ -104,7 +104,7 @@ async function main() {
   });
 }
 
-if (require.main === module && process.versions && process.versions.electron) {
+if (process.versions && process.versions.electron && path.resolve(process.argv[1] || '') === __filename) {
   main().catch((error) => { writeStatus(`Manual login failed: ${error.message}`); process.exit(1); });
 } else if (require.main === module) {
   console.error('Run under Electron: npm run login -- <provider>');

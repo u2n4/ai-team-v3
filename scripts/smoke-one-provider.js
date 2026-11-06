@@ -416,8 +416,9 @@ function writeSmokeTraceArtifact({
     })),
     transcriptCount: transcript.length,
     safety: {
-      promptTextStored: false,
-      responseTextStored: false,
+      promptTextStoredInArtifact: false,
+      responseTextStoredInArtifact: false,
+      responseTextStoredInMemoryTranscript: transcript.length > 0,
       cookiesStored: false,
       headersStored: false,
       tokensStored: false,
@@ -625,12 +626,12 @@ async function executeLiveValidation({
     diagnosticsStore.add({
       providerId: provider.id,
       code: 'SMOKE_SENTINEL_MISMATCH',
-      message: `Captured response did not contain the smoke sentinel ${SMOKE_SENTINEL}.`,
+      message: !sentinelSeen ? 'Captured response did not contain this run\'s required smoke nonce.' : 'Captured response is unchanged from the pre-send baseline.',
       details: { responseChars: String(normalized.text || '').length }
     });
     writeOneProviderReport(
       status,
-      `Provider replied but the response did not contain the required sentinel "${SMOKE_SENTINEL}". The send/capture round-trip is unproven.`,
+      !sentinelSeen ? 'Provider replied without this run\'s required smoke nonce. The send/capture round-trip is unproven.' : 'Captured response matches the pre-send baseline. A fresh round-trip is unproven.',
       { providerId: provider.id, reportPath }
     );
     const smokeTracePath = writeSmokeTraceArtifact({

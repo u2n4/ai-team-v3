@@ -202,7 +202,10 @@ async function run() {
     const smokeTrace = fs.readFileSync(result.smokeTracePath, 'utf8');
     assert.equal(smokeTrace.includes('AI_TEAM_V3_SMOKE_OK'), false);
     assert.equal(smokeTrace.includes('must-not-leak'), false);
-    assert.match(smokeTrace, /"responseTextStored": false/);
+    const safety = JSON.parse(smokeTrace).safety;
+    assert.equal(safety.promptTextStoredInArtifact, false);
+    assert.equal(safety.responseTextStoredInArtifact, false);
+    assert.equal(safety.responseTextStoredInMemoryTranscript, true);
   }
 
   {

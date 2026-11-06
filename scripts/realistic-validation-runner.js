@@ -369,15 +369,16 @@ function writeAllModesReport({ modeReports, reportPath }) {
   ensureParentDir(reportPath);
   const rows = modeReports.map(({ mode, analysis, report }) => {
     const diagnostics = report.diagnostics.map((entry) => entry.code).slice(0, 8).join(', ') || 'none';
-    return `| ${mode.id} | ${analysis.status} | ${analysis.metrics.aiTurns} | ${analysis.metrics.maxObservedPromptChars} | ${diagnostics} |`;
+    const failed = analysis.checks.filter(check => check.status === 'FAIL').map(check => `${check.id}: ${check.message}`).join('; ').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ') || 'none';
+    return `| ${mode.id} | ${analysis.status} | ${analysis.metrics.aiTurns} | ${analysis.metrics.maxObservedPromptChars} | ${diagnostics} | ${failed} |`;
   }).join('\n');
   const body = [
     '# All Modes Test Report',
     '',
     `Status: ${modeReports.every((entry) => entry.analysis.ok) ? 'PASS' : 'FAIL'}`,
     '',
-    '| Mode | Status | Accepted AI Turns | Max Prompt Chars | Diagnostics |',
-    '|---|---|---:|---:|---|',
+    '| Mode | Status | Accepted AI Turns | Max Prompt Chars | Diagnostics | Failed checks |',
+    '|---|---|---:|---:|---|---|',
     rows,
     '',
     'Each mode ran five offline rounds with at least one injected provider failure. No live provider was contacted.'

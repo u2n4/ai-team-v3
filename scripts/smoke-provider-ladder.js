@@ -28,13 +28,14 @@ function selectedSteps(stepName) {
   if (!stepName || stepName === 'all' || stepName === 'multi') {
     return ['one', 'two', 'three', 'five', 'seven'];
   }
-  if (!LADDER_STEPS[stepName]) {
+  if (!Object.hasOwn(LADDER_STEPS, stepName)) {
     throw new Error(`Unknown fake ladder step: ${stepName}`);
   }
   return [stepName];
 }
 
-async function runFakeLadderStep({ stepName, cycles = 2, modes = {} }) {
+async function runFakeLadderStep({ stepName, cycles = 2, modes = {} } = {}) {
+  if (!Object.hasOwn(LADDER_STEPS, stepName)) throw new Error(`Unknown fake ladder step: ${stepName}`);
   const providerIds = LADDER_STEPS[stepName];
   const providers = createFakeLadderProviders(providerIds, modes);
   const orchestrator = new Orchestrator({ providers });
@@ -79,7 +80,7 @@ async function main() {
 if (require.main === module) {
   main().catch((error) => {
     console.error(error);
-    process.exit(1);
+    process.exitCode = 1;
   });
 }
 
