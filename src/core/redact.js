@@ -20,17 +20,18 @@ function redactSensitiveText(value) {
       if (!(error instanceof SyntaxError)) return '[REDACTED]';
     }
   }
-  // A key hidden behind JSON escapes must still match the patterns below.
-  text = text.replace(/\\u([0-9a-f]{4})/gi, (raw, hex) => {
-    const char = String.fromCharCode(parseInt(hex, 16));
-    return /^[!#$%&'*+.^_\x60|~0-9A-Za-z-]$/.test(char) ? char : raw;
-  });
   text = text.replace(/https?:\/\/[^\s<>"']+/gi, (raw) => {
     try {
       const url = new URL(raw);
       url.username = ''; url.password = ''; url.search = url.search ? '?redacted=1' : ''; url.hash = '';
       return url.toString();
     } catch { return '[REDACTED-URL]'; }
+  });
+  // A key hidden behind JSON escapes must still match the patterns below. Decode after the
+  // URL pass: a decoded apostrophe would otherwise end a URL before its query.
+  text = text.replace(/\\u([0-9a-f]{4})/gi, (raw, hex) => {
+    const char = String.fromCharCode(parseInt(hex, 16));
+    return /^[!#$%&'*+.^_\x60|~0-9A-Za-z-]$/.test(char) ? char : raw;
   });
   for (const pattern of SECRET_PATTERNS) {
     text = text.replace(pattern, (_match, prefix, secret) => {
