@@ -16,7 +16,7 @@ function providerPriority(providerId) {
 
 function buildDefaultProviderSettings() {
   return Object.fromEntries(Object.values(DEFAULT_PROVIDER_DEFINITIONS).map((provider) => [provider.id, {
-    enabled: ['qwen', 'kimi', 'deepseek', 'gemini', 'chatgpt'].includes(provider.id),
+    enabled: ['qwen', 'kimi', 'deepseek'].includes(provider.id),
     liveEnabled: ['qwen', 'kimi'].includes(provider.id),
     maxPromptChars: provider.maxPromptChars || 8000,
     stabilityMs: provider.stabilityMs || 1800,
@@ -49,10 +49,11 @@ const DEFAULT_SAFE_SETTINGS = Object.freeze({
 
 function deepMerge(base, override) {
   if (!override || typeof override !== 'object' || Array.isArray(override)) {
-    return base;
+    return structuredClone(base);
   }
-  const output = { ...base };
+  const output = structuredClone(base);
   for (const [key, value] of Object.entries(override)) {
+    if (['__proto__', 'prototype', 'constructor'].includes(key)) continue;
     if (value && typeof value === 'object' && !Array.isArray(value) && base[key] && typeof base[key] === 'object' && !Array.isArray(base[key])) {
       output[key] = deepMerge(base[key], value);
     } else {
@@ -64,6 +65,8 @@ function deepMerge(base, override) {
 
 function enforceSafeDefaults(settings) {
   const safe = deepMerge(DEFAULT_SAFE_SETTINGS, settings || {});
+  safe.live = safe.live && typeof safe.live === 'object' ? safe.live : {};
+  safe.providers = safe.providers && typeof safe.providers === 'object' && !Array.isArray(safe.providers) ? safe.providers : buildDefaultProviderSettings();
   safe.live = {
     ...safe.live,
     enabled: safe.live.enabled === true,
@@ -72,7 +75,10 @@ function enforceSafeDefaults(settings) {
     forbiddenProviders: [...FORBIDDEN_LIVE_PROVIDERS],
     fullSevenProviderLive: false
   };
-  for (const [providerId, providerSettings] of Object.entries(safe.providers || {})) {
+  for (const [providerId, value] of Object.entries(safe.providers || {})) {
+    const providerSettings = value && typeof value === 'object' ? value : {};
+    safe.providers[providerId] = providerSettings;
+    if (FORBIDDEN_LIVE_PROVIDERS.includes(providerId)) providerSettings.enabled = false;
     if (!LIVE_PROVIDER_ALLOWLIST.includes(providerId)) {
       providerSettings.liveEnabled = false;
     }
@@ -84,8 +90,13 @@ function loadSettings({ projectRoot = process.cwd(), settingsPath = path.join(pr
   if (!fs.existsSync(settingsPath)) {
     return enforceSafeDefaults({});
   }
-  const parsed = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-  return enforceSafeDefaults(parsed);
+  try {
+    return enforceSafeDefaults(JSON.parse(fs.readFileSync(settingsPath, 'utf8')));
+  } catch (error) {
+    const safe = enforceSafeDefaults({});
+    safe.loadError = error.code || 'INVALID_SETTINGS_JSON';
+    return safe;
+  }
 }
 
 module.exports = {

@@ -32,7 +32,7 @@ async function run() {
   // All providers can take the file.
   const targets = [
     { providerId: 'qwen', webContents: mockWebContents(true), provider: { id: 'qwen' } },
-    { providerId: 'gemini', webContents: mockWebContents(true), provider: { id: 'gemini' } }
+    { providerId: 'kimi', webContents: mockWebContents(true), provider: { id: 'kimi' } }
   ];
   const r = await shareFileWithRoom(targets, png);
   assert.equal(r.ok, true);

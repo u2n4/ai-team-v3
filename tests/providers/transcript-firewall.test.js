@@ -27,6 +27,9 @@ async function runSingleMode(mode, expectedCode, { expectAccepted = false } = {}
   if (expectAccepted) {
     assert.equal(report.diagnostics.length, 0, `${mode} should be accepted after cleanup`);
     assert.equal(report.transcript.filter((entry) => entry.role === 'ai').length, 1);
+    const answer = report.transcript.find(entry => entry.role === 'ai');
+    assert.equal(answer.meta.normalizerCode, expectedCode);
+    assert.equal(answer.text, 'Final public answer.');
     assert.equal(report.transcript.some((entry) => /think|reasoning|chain of thought/i.test(entry.text)), false);
   } else {
     assert.equal(report.diagnostics.some((entry) => entry.code === expectedCode), true, `${mode} should produce ${expectedCode}`);

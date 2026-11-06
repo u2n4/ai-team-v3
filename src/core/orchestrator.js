@@ -45,8 +45,8 @@ class Orchestrator {
     }));
   }
 
-  async run({ userMessage, cycles = 1, userGoal = userMessage, turnDelayMs = 0 }) {
-    if (this.transcriptStore.latestTurnId() === 0 && userMessage) {
+  async run({ userMessage, cycles = 1, userGoal = userMessage, turnDelayMs = 0, onTurnResult = null }) {
+    if (userMessage) {
       this.transcriptStore.appendUser({ text: userMessage });
     }
 
@@ -77,6 +77,7 @@ class Orchestrator {
           });
         }
         results.push(result);
+        if (onTurnResult) await onTurnResult(result);
         turnsRun += 1;
         // Human-ish pause between turns so a fast back-to-back loop doesn't trip
         // per-account rate limits / bot challenges (researched best practice). Skipped

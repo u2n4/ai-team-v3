@@ -57,7 +57,10 @@ async function run() {
   assert.equal(r.ok, true);
   assert.equal(r.code, 'FILE_ATTACHED');
   assert.equal(r.fileName, 'pic.png');
-  assert.deepEqual(setFiles, [path.resolve(png)]);
+  assert.equal(setFiles.length, 1);
+  assert.equal(path.basename(setFiles[0]), 'pic.png');
+  assert.notEqual(setFiles[0], path.resolve(png));
+  assert.equal(fs.existsSync(setFiles[0]), false, 'private upload snapshot is removed after CDP registration');
 
   // Rejects a forbidden file before touching the debugger.
   const bad = await ctrl.attachFile({ id: 'qwen' }, exe);

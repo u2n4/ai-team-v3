@@ -38,8 +38,12 @@ class LifecycleMonitor {
 
     const stopSelectors = Array.isArray(provider.stopSelectors) ? provider.stopSelectors : [];
     let sawGenerationSignal = false;
+    let stoppedAt = null;
 
     while (Date.now() - startedAt < timeoutMs) {
+      if (this.webContents && typeof this.webContents.isDestroyed === 'function' && this.webContents.isDestroyed()) {
+        const error = new Error(`Provider ${provider.id} view was closed.`); error.code = 'WEBVIEW_CLOSED'; throw error;
+      }
       const count = await domCapture.count(provider.responseCountSelector);
       const candidate = await domCapture.captureLatest(provider);
       if (candidate.text && candidate.text !== lastText) {
@@ -57,17 +61,19 @@ class LifecycleMonitor {
       // without waiting out the full stability window. More reliable than stableMs alone
       // for providers that stream tokens for tens of seconds.
       const generating = stopSelectors.length ? await this.hasActiveStopSignal(domCapture, stopSelectors) : false;
+      if (generating) stoppedAt = null;
+      else if (sawGenerationSignal && stoppedAt == null) stoppedAt = Date.now();
       sawGenerationSignal = sawGenerationSignal || generating;
       // The Stop control vanishing means generation ended, but some providers render the
       // final markdown a beat AFTER hiding Stop. Require a short post-stop settle (text
       // unchanged for ~600ms) so we don't forward a truncated answer.
       const POST_STOP_SETTLE_MS = Math.min(600, effectiveStableMs);
       const doneByStopSignal = sawGenerationSignal && !generating
-        && Date.now() - lastChangedAt >= POST_STOP_SETTLE_MS;
+        && Date.now() - Math.max(lastChangedAt, stoppedAt || 0) >= POST_STOP_SETTLE_MS;
 
       const providerStable = candidate.stable !== false;
       const textStable = providerStable && Date.now() - lastChangedAt >= effectiveStableMs;
-      const stable = hasNewResponse && lastText && (doneByStopSignal || textStable);
+      const stable = hasNewResponse && lastText && !generating && (doneByStopSignal || (!sawGenerationSignal && textStable));
       if (stable) {
         return {
           text: lastCandidate.text,
@@ -84,7 +90,9 @@ class LifecycleMonitor {
       await new Promise((resolve) => setTimeout(resolve, pollMs));
     }
 
-    throw new Error(`Timed out waiting for stable ${provider.id} response.`);
+    const error = new Error(`Timed out waiting for stable ${provider.id} response (${lastText.length} characters observed; generation ${sawGenerationSignal ? 'seen' : 'not seen'}).`);
+    error.code = 'PROVIDER_RESPONSE_TIMEOUT';
+    throw error;
   }
 
   // True while a generation/"Stop" control is visible on the page. Used to detect the

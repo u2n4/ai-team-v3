@@ -29,7 +29,7 @@ async function main() {
 
   console.log('\nSafe Selector Doctor command:');
   console.log(SAFE_DOCTOR_COMMAND);
-  process.exitCode = result.exitCode;
+  process.exitCode = Number.isInteger(result.exitCode) ? result.exitCode : (result.ok ? 0 : 1);
 }
 
 // Electron entry point: under Electron `require.main === module` is false, so

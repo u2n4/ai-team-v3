@@ -70,6 +70,7 @@ function classifyProviderHealth(signals = {}) {
   }
 
   if (sendVerified === true) {
+    if (responseStarted !== true) return { verdict: HEALTH.UNKNOWN, broken: true, reason: 'Send verified but response start was not observed.' };
     if (Number.isFinite(Number(sendMs)) && Number(sendMs) > slowSendThresholdMs) {
       return { verdict: HEALTH.READY_SLOW, broken: false, reason: `Working but slow (send ${Math.round(Number(sendMs))}ms > ${slowSendThresholdMs}ms).` };
     }

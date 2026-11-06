@@ -14,11 +14,12 @@ async function run() {
   assert.equal(liveProviderStatus('kimi'), 'READY_FOR_PROVIDER_DOCTOR');
   // Room-live-allowed providers that are NOT on the one-provider smoke allowlist resolve
   // to UNSUPPORTED for the smoke gate (the staged ladder keeps smoke at qwen/kimi only).
-  for (const providerId of ['grok', 'zai', 'meta', 'manus', 'deepseek', 'gemini', 'perplexity']) {
+  for (const providerId of ['grok', 'zai', 'meta', 'manus', 'deepseek', 'perplexity']) {
     assert.equal(liveProviderStatus(providerId), 'BLOCKED_UNSUPPORTED_PROVIDER');
   }
-  // 2026-06-21 (D20): only ChatGPT and Claude stay forbidden before page open.
+  // 2026-06-21 (D20): ChatGPT, Claude and Gemini stay forbidden before page open.
   assert.equal(liveProviderStatus('chatgpt'), 'BLOCKED_PROVIDER_FORBIDDEN');
+  assert.equal(liveProviderStatus('gemini'), 'BLOCKED_PROVIDER_FORBIDDEN');
   assert.equal(liveProviderStatus('claude'), 'BLOCKED_PROVIDER_FORBIDDEN');
 
   for (const providerId of LIVE_PROVIDER_ALLOWLIST) {

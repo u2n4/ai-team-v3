@@ -157,13 +157,14 @@ function validateModeSpecificAcceptance(modeId, report = {}) {
       modeId
     };
   }
-  const text = (report.transcript || [])
+  const text = ((report && report.transcript) || [])
     .filter((entry) => entry.role === 'ai')
     .map((entry) => entry.text)
     .join('\n');
+  const ok = mode.acceptanceCriterion(text);
   return {
-    ok: mode.acceptanceCriterion(text),
-    code: mode.acceptanceCriterion(text) ? 'MODE_ACCEPTANCE_PASS' : 'MODE_ACCEPTANCE_FAIL',
+    ok,
+    code: ok ? 'MODE_ACCEPTANCE_PASS' : 'MODE_ACCEPTANCE_FAIL',
     modeId
   };
 }

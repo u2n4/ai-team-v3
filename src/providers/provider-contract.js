@@ -4,9 +4,9 @@
 // V2-session-reusable providers (qwen/kimi) even though the room policy allows more. This
 // preserves the staged ladder — prove one safe provider live before widening.
 const LIVE_PROVIDER_ALLOWLIST = Object.freeze(['qwen', 'kimi']);
-// 2026-06-21 (D20, Ali): only ChatGPT and Claude are blocked before page open. All other
+// 2026-06-21 (D20, Ali): ChatGPT, Claude and Gemini are blocked before page open. All other
 // providers are live-allowed at the room level (still human-gated per session policy).
-const FORBIDDEN_LIVE_PROVIDERS = Object.freeze(['chatgpt', 'claude']);
+const FORBIDDEN_LIVE_PROVIDERS = Object.freeze(['chatgpt', 'claude', 'gemini']);
 
 const REQUIRED_CONTRACT_FIELDS = Object.freeze([
   'id',
@@ -65,15 +65,15 @@ function validateProviderContract(contract, { allowedIds = LIVE_PROVIDER_ALLOWLI
     }
   }
 
-  if (!Number.isFinite(Number(contract.stabilityMs)) || Number(contract.stabilityMs) < 0) {
+  if (!Number.isFinite(contract.stabilityMs) || contract.stabilityMs < 0) {
     errors.push('stabilityMs must be a non-negative number');
   }
 
-  if (!Number.isFinite(Number(contract.maxPromptChars)) || Number(contract.maxPromptChars) <= 0) {
+  if (!Number.isFinite(contract.maxPromptChars) || contract.maxPromptChars <= 0) {
     errors.push('maxPromptChars must be a positive number');
   }
 
-  if (!contract.cooldownPolicy || !Number.isFinite(Number(contract.cooldownPolicy.consecutiveFailureLimit))) {
+  if (!contract.cooldownPolicy || !Number.isSafeInteger(contract.cooldownPolicy.consecutiveFailureLimit) || contract.cooldownPolicy.consecutiveFailureLimit < 1) {
     errors.push('cooldownPolicy.consecutiveFailureLimit must be numeric');
   }
 

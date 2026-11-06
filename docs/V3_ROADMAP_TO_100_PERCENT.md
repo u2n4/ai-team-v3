@@ -98,7 +98,7 @@ Move provider definitions from ad hoc objects to explicit contracts with validat
 
 - Every provider contract declares URL, partition, selectors, stability window, forbidden live status, and safety policy.
 - Invalid contracts fail tests before runtime.
-- Claude and Perplexity are marked non-live-disabled unless explicitly re-enabled by policy.
+- Claude and Perplexity are marked live-disabled unless explicitly re-enabled by policy.
 
 **Risks**
 

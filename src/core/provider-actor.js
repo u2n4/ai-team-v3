@@ -2,6 +2,7 @@
 
 const { normalizeResponseCandidate } = require('./response-normalizer');
 const { redactSensitiveText } = require('./redact');
+const { withDeadline } = require('./deadline');
 
 // Reduce a send-controller result to verification METADATA only. Never carry
 // composerTextAfterSend (the raw prompt) into a diagnostic — the report contract
@@ -86,6 +87,7 @@ class ProviderActor {
       throw new Error(`Invalid provider state transition for ${this.providerId}: ${fromState} -> ${toState}`);
     }
     this.state = toState;
+    if (this.onState) this.onState(toState, meta);
     this.traceStore.transition(this.providerId, fromState, toState, meta);
   }
 
@@ -108,7 +110,8 @@ class ProviderActor {
       ok: false,
       providerId: this.providerId,
       code,
-      diagnostic: true
+      diagnostic: true,
+      message: redactSensitiveText(message)
     };
   }
 
@@ -125,6 +128,7 @@ class ProviderActor {
       return { ok: false, providerId: this.providerId, code: 'PROVIDER_DISABLED_FOR_RUN' };
     }
 
+    try {
     this.transition(PROVIDER_STATES.PREPARING_PROMPT, { cycleIndex, turnIndex });
     const prompt = this.promptBuilder({
       providerId: this.providerId,
@@ -159,19 +163,22 @@ class ProviderActor {
     }
 
     this.transition(PROVIDER_STATES.READY_TO_SEND, budget.metrics);
-    try {
       this.transition(PROVIDER_STATES.SENDING, { promptChars: budget.metrics.promptChars });
       this.quotaGuard.recordSendAttempt(this.providerId);
-      const sendResult = await this.provider.send(prompt.text, {
+      const cancelPending = () => {
+        this.quotaGuard.disableForRun(this.providerId);
+        if (this.provider.cancelPending) this.provider.cancelPending();
+      };
+      const sendResult = await withDeadline(() => this.provider.send(prompt.text, {
         prompt,
         budget,
         transcriptStore: this.transcriptStore
-      });
+      }), this.provider.sendTimeoutMs || 45000, 'PROVIDER_SEND_TIMEOUT', cancelPending);
       if (!sendResult || sendResult.verified !== true) {
         this.quotaGuard.recordFailure(this.providerId);
         // Store only verification metadata — never composerTextAfterSend, which is the
         // raw prompt the firewall/redaction contract forbids in reports/diagnostics.
-        return this.failDiagnostic('SEND_NOT_VERIFIED', 'Provider send could not be verified.', {
+        return this.failDiagnostic('SEND_NOT_VERIFIED', `Provider send could not be verified (${redactSensitiveText(sendResult && (sendResult.verifyReason || sendResult.code) || 'no acknowledgement')}).`, {
           sendResult: summarizeSendResult(sendResult)
         });
       }
@@ -187,11 +194,11 @@ class ProviderActor {
       // prompt), which the redaction contract forbids in traces/reports.
       this.transition(PROVIDER_STATES.SEND_VERIFIED, { sendResult: summarizeSendResult(sendResult) });
       this.transition(PROVIDER_STATES.WAITING_RESPONSE, {});
-      const capture = await this.provider.waitForResponse({
+      const capture = await withDeadline(() => this.provider.waitForResponse({
         prompt,
         transcriptStore: this.transcriptStore,
         timeoutMs: this.provider.timeoutMs
-      });
+      }), this.provider.timeoutMs || 60000, 'PROVIDER_RESPONSE_TIMEOUT', cancelPending);
 
       this.transition(PROVIDER_STATES.CAPTURE_CANDIDATE, { hasText: Boolean(capture && capture.text) });
       this.transition(PROVIDER_STATES.NORMALIZING_RESPONSE, {});
@@ -255,7 +262,7 @@ class ProviderActor {
       this.quotaGuard.recordFailure(this.providerId);
       // Keep the error name and a redacted message; drop the raw stack (it can embed
       // filesystem paths / env detail) from the report-visible diagnostic.
-      return this.failDiagnostic('PROVIDER_RUNTIME_ERROR', redactSensitiveText(error.message), {
+      return this.failDiagnostic(/^PROVIDER_(SEND|RESPONSE)_TIMEOUT$|^WEBVIEW_CLOSED$/.test(error.code || '') ? error.code : 'PROVIDER_RUNTIME_ERROR', redactSensitiveText(error.message), {
         name: error.name
       });
     }

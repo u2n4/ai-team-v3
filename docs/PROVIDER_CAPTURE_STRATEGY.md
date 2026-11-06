@@ -1,5 +1,7 @@
 # Provider Capture Strategy
 
+Current policy: ChatGPT, Claude and Gemini are forbidden live. Any provider catalog below includes offline/fake metadata only; it does not authorize opening those providers.
+
 ## Capture Order
 
 1. DOM response selectors.
@@ -36,4 +38,4 @@ The xray output is debugging evidence only. It must never enter the transcript.
 
 ## Live Testing Gate
 
-First live provider must be Qwen or Kimi. Do not run Claude or Perplexity live tests until later explicit approval. Stop provider safely on challenge, limit, paid access, blocked composer, or unstable capture.
+First live provider must be Qwen or Kimi. ChatGPT, Claude and Gemini are forbidden live. Perplexity and other room candidates remain human-gated and are outside the first qwen/kimi smoke step. Stop provider safely on challenge, limit, paid access, blocked composer, or unstable capture.

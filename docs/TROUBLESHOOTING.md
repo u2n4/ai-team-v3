@@ -42,9 +42,9 @@ $env:AI_TEAM_V3_LIVE_PROVIDER='qwen'
 $env:AI_TEAM_V3_CONFIRM_SAFE_SESSION='1'
 ```
 
-## ChatGPT or Claude live is refused (`BLOCKED_PROVIDER_FORBIDDEN`)
+## ChatGPT, Claude or Gemini live is refused (`BLOCKED_PROVIDER_FORBIDDEN`)
 
-Correct. ChatGPT and Claude live sessions are forbidden before page open by policy (`config/provider-session-policy.json`).
+Correct. ChatGPT, Claude and Gemini live sessions are forbidden before page open by policy (`config/provider-session-policy.json`).
 
 ## Trace/report viewer shows no traces
 
@@ -59,3 +59,11 @@ The viewer stores counts, statuses, lengths, and sanitized URLs only. It never p
 ## Fake ladder has diagnostics
 
 Inspect the specific fake mode and provider. Diagnostics stay in `DiagnosticsStore` and never enter the public transcript or subsequent prompts.
+
+## Windows sandbox cannot read the Electron binary
+
+If Electron 45 exits before opening a window with `install_dir_access.cc`, inspect the ACL of `node_modules/electron/dist`. Electron sandbox processes require read/execute access through `ALL APPLICATION PACKAGES` on those application binaries. Restore that access only on the application binary directory; keep `sandbox: true` and `contextIsolation: true`. The final refresh verified this on the local checkout.
+
+## Edge import cannot find a verified debug session
+
+Import uses an already running, dedicated Edge debug profile on loopback port 9222 and verifies the listening process is the installed Edge executable. It never starts debugging against the default Edge profile, and does not close an existing browser. Opening a debug profile and logging in remain manual, human-gated tasks.

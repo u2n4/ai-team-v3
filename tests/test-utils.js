@@ -11,20 +11,22 @@ const DEFAULT_PROVIDER_IDS = ['qwen', 'kimi', 'chatgpt', 'deepseek', 'gemini', '
 // Project-local temp root. Using a dir on the project's own drive (instead of
 // os.tmpdir()) avoids the intermittent EPERM on Windows when mkdtemp races
 // against the shared system temp dir. Gitignored via the project .gitignore.
-const TEMP_ROOT = path.join(__dirname, '..', '.tmp');
+const TEMP_ROOT = path.join(__dirname, '..', '.tmp', 'tests');
 
 /**
  * Create a unique temp directory for a test, retrying on the rare name
  * collision / transient EPERM. Returns the absolute path.
  */
 function makeTempDir(prefix = 'ai-team-v3-') {
-  fs.mkdirSync(TEMP_ROOT, { recursive: true });
   let lastErr;
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
+      fs.mkdirSync(TEMP_ROOT, { recursive: true, mode: 0o700 });
       return fs.mkdtempSync(path.join(TEMP_ROOT, prefix));
     } catch (err) {
       lastErr = err;
+      if (!['EPERM', 'EACCES', 'EEXIST'].includes(err.code)) throw err;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10 * (attempt + 1));
     }
   }
   throw lastErr;
@@ -61,11 +63,14 @@ function assertNoDiagnosticsInTranscript(report) {
 }
 
 function assertNoDiagnosticsInPrompts(providers) {
+  let checked = 0;
   for (const provider of providers) {
     for (const prompt of provider.sentPrompts) {
+      checked++;
       assert.equal(/\[SYSTEM DIAGNOSTIC\]|PROMPT_OVER_BUDGET|FAILED_DIAGNOSTIC/i.test(prompt.text), false);
     }
   }
+  assert.ok(checked > 0, 'No prompts were exercised by the privacy assertion');
 }
 
 module.exports = {

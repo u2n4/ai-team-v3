@@ -2,15 +2,20 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
+const { Transform } = require('node:stream');
+const { pipeline } = require('node:stream/promises');
+const { redactSensitiveText } = require('../core/redact');
+const { FORBIDDEN_LIVE_PROVIDERS } = require('../providers/provider-contract');
 
 // Strip absolute filesystem paths (and any secret-shaped text) from an error message before
 // it can be returned/persisted — error messages are metadata-only, never path/secret disclosure.
 function safeErrorMessage(error) {
-  let msg = String((error && error.message) || error || '').slice(0, 200);
+  let msg = redactSensitiveText((error && error.message) || error || '');
   msg = msg
-    .replace(/[A-Za-z]:\\[^\s'"]+/g, '[path]')   // Windows absolute paths
-    .replace(/\/(?:[^\s'"/]+\/)+[^\s'"/]*/g, '[path]'); // POSIX absolute paths
-  return msg;
+    .replace(/[A-Za-z]:[\\/][^'"\r\n)]+/g, '[path]')
+    .replace(/(^|[\s'"(])\/[^'"\r\n)]+/g, '$1[path]');
+  return msg.slice(0, 200);
 }
 
 // Generic attach-button selectors that reveal a hidden <input type=file> on most provider
@@ -84,8 +89,11 @@ function validateFile(filePath, { allowedRoot = null } = {}) {
     return { ok: false, code: 'NOT_A_FILE', message: `Not a file: ${base}` };
   }
   if (allowedRoot) {
-    const root = path.resolve(allowedRoot);
-    if (abs !== root && !abs.startsWith(root + path.sep)) {
+    let root;
+    try { root = fs.realpathSync(path.resolve(allowedRoot)); }
+    catch { return { ok: false, code: 'FILE_OUTSIDE_ROOT', message: 'Allowed upload folder is unavailable.' }; }
+    const relative = path.relative(root, abs);
+    if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
       return { ok: false, code: 'FILE_OUTSIDE_ROOT', message: `File is outside the allowed folder: ${base}` };
     }
   }
@@ -103,8 +111,9 @@ function validateFile(filePath, { allowedRoot = null } = {}) {
 }
 
 class FileUploadController {
-  constructor({ webContents }) {
+  constructor({ webContents, allowedRoot = null }) {
     this.webContents = webContents;
+    this.allowedRoot = allowedRoot;
   }
 
   // Resolve the CDP backendNodeId of an <input type=file> on the page, optionally after
@@ -128,18 +137,43 @@ class FileUploadController {
   // Attach a single file to the provider's file input via CDP DOM.setFileInputFiles — this
   // sets the file programmatically without an OS dialog and fires the page's change handler,
   // exactly as a real user picking a file would. Returns a structured result (metadata only).
-  async attachFile(provider, filePath) {
-    const v = validateFile(filePath);
-    if (!v.ok) return v;
-
-    const hasInput = await this.findFileInput(provider);
-    if (!hasInput) {
-      return { ok: false, code: 'NO_FILE_INPUT', message: 'No <input type=file> found on the provider page (and no attach button revealed one).' };
+  async attachFile(provider, filePath, { allowedRoot = this.allowedRoot } = {}) {
+    if (provider && FORBIDDEN_LIVE_PROVIDERS.includes(provider.id)) {
+      return { ok: false, code: 'BLOCKED_PROVIDER_FORBIDDEN', message: 'File upload to this provider is forbidden.' };
     }
-
-    const dbg = this.webContents.debugger;
+    const v = validateFile(filePath, { allowedRoot });
+    if (!v.ok) return v;
+    let stagingDir;
+    let dbg;
     let attachedHere = false;
     try {
+      if (this.webContents.isDestroyed && this.webContents.isDestroyed()) throw new Error('Provider view was closed.');
+      if (provider && provider.url && this.webContents.getURL && new URL(this.webContents.getURL()).origin !== new URL(provider.url).origin) {
+        return { ok: false, code: 'PROVIDER_ORIGIN_MISMATCH', message: 'Provider navigated away before file upload.' };
+      }
+      // CDP reads a path later. Give it a private snapshot whose actual bytes are
+      // validated, so changes to the selected original cannot change the upload.
+      stagingDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'ai-team-v3-upload-'));
+      await fs.promises.chmod(stagingDir, 0o700);
+      const stagedPath = path.join(stagingDir, path.basename(v.abs));
+      let copied = 0;
+      await pipeline(fs.createReadStream(v.abs), new Transform({
+        transform(chunk, _encoding, callback) {
+          copied += chunk.length;
+          callback(copied > MAX_FILE_BYTES ? new Error('File exceeded the upload size limit while being copied.') : null, chunk);
+        }
+      }), fs.createWriteStream(stagedPath, { flags: 'wx', mode: 0o600 }));
+      await fs.promises.chmod(stagedPath, 0o600);
+      const snapshot = validateFile(stagedPath, { allowedRoot: stagingDir });
+      if (!snapshot.ok) return snapshot;
+      const deadline = Date.now() + 2000;
+      let hasInput = await this.findFileInput(provider);
+      while (!hasInput && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        hasInput = await this.webContents.executeJavaScript('Boolean(document.querySelector(\'input[type="file"]\'))').catch(() => false);
+      }
+      if (!hasInput) return { ok: false, code: 'NO_FILE_INPUT', message: 'No file input appeared after opening the attachment control.' };
+      dbg = this.webContents.debugger;
       if (!dbg.isAttached()) { dbg.attach('1.3'); attachedHere = true; }
       await dbg.sendCommand('DOM.enable');
       const { root } = await dbg.sendCommand('DOM.getDocument', { depth: -1, pierce: true });
@@ -147,7 +181,10 @@ class FileUploadController {
       if (!nodeId) {
         return { ok: false, code: 'NO_FILE_INPUT', message: 'File input vanished before it could be set.' };
       }
-      await dbg.sendCommand('DOM.setFileInputFiles', { files: [v.abs], nodeId });
+      if (provider && provider.url && this.webContents.getURL && new URL(this.webContents.getURL()).origin !== new URL(provider.url).origin) {
+        return { ok: false, code: 'PROVIDER_ORIGIN_MISMATCH', message: 'Provider navigated away before file upload.' };
+      }
+      await dbg.sendCommand('DOM.setFileInputFiles', { files: [stagedPath], nodeId });
       // Let the page register the file (preview/upload pipeline) before the caller sends.
       await new Promise((r) => setTimeout(r, 600));
       const accepted = await this.webContents.executeJavaScript(`
@@ -157,13 +194,14 @@ class FileUploadController {
         ok: accepted === true,
         code: accepted === true ? 'FILE_ATTACHED' : 'FILE_NOT_REGISTERED',
         fileName: path.basename(v.abs),
-        size: v.size,
+        size: snapshot.size,
         ext: v.ext
       };
     } catch (error) {
       return { ok: false, code: 'UPLOAD_ERROR', message: safeErrorMessage(error) };
     } finally {
       try { if (attachedHere && dbg.isAttached()) dbg.detach(); } catch (_e) {}
+      if (stagingDir) await fs.promises.rm(stagingDir, { recursive: true, force: true });
     }
   }
 }

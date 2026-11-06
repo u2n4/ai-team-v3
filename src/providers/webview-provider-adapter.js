@@ -326,11 +326,17 @@ const DEFAULT_PROVIDER_DEFINITIONS = Object.freeze({
 
 class WebviewProviderAdapter extends BaseProvider {
   constructor({ definition, sendController, lifecycleMonitor, domCapture }) {
-    super({ id: definition.id, name: definition.name });
+    super({ id: definition.id, name: definition.name, timeoutMs: definition.timeoutMs || 60000 });
     this.definition = definition;
     this.sendController = sendController;
     this.lifecycleMonitor = lifecycleMonitor;
     this.domCapture = domCapture;
+    this.sendTimeoutMs = definition.sendTimeoutMs || 90000;
+  }
+
+  cancelPending() {
+    const wc = this.sendController && this.sendController.webContents;
+    if (wc && !wc.isDestroyed()) wc.close();
   }
 
   async send(promptText, context) {

@@ -30,7 +30,8 @@ class QuotaGuard {
   }
 
   recordPromptSent(providerId, promptChars) {
-    this.get(providerId).promptCharsSent += promptChars || 0;
+    if (!Number.isFinite(promptChars) || promptChars < 0) throw new TypeError('promptChars must be a non-negative finite number');
+    this.get(providerId).promptCharsSent += promptChars;
   }
 
   recordSuccess(providerId) {

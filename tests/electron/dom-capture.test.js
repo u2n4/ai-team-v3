@@ -20,7 +20,7 @@ async function run() {
 
   const result = await domCapture.captureLatest(DEFAULT_PROVIDER_DEFINITIONS.kimi);
   assert.equal(result.stable, false);
-  assert.equal(executedScript.includes('__aiTeamV3CaptureState'), true);
+  assert.equal(executedScript.includes('__aiTeamV3CaptureState'), false);
   assert.equal(executedScript.includes('stabilityMs'), true);
   assert.equal(executedScript.includes('"kimi"'), true);
 

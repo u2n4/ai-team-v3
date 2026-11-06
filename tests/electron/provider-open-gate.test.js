@@ -34,7 +34,7 @@ async function run() {
   }
 
   // 4) forbidden providers blocked FIRST, regardless of confirmation/env.
-  for (const id of ['chatgpt', 'claude']) {
+  for (const id of ['chatgpt', 'claude', 'gemini']) {
     const blocked = evaluateProviderOpen(id, { confirmed: true }, {
       gateManager,
       env: { AI_TEAM_V3_CONFIRM_SAFE_SESSION: '1' }
@@ -49,7 +49,9 @@ async function run() {
     gateManager,
     env: { AI_TEAM_V3_CONFIRM_SAFE_SESSION: '1' }
   });
-  assert.equal(geminiBoth.ok, true);
+  assert.equal(geminiBoth.ok, false);
+  assert.equal(geminiBoth.providerId, 'gemini');
+  assert.equal(geminiBoth.code, 'BLOCKED_PROVIDER_FORBIDDEN');
 
   console.log('PASS provider:open requires BOTH renderer confirmation and AI_TEAM_V3_CONFIRM_SAFE_SESSION env gate');
 }

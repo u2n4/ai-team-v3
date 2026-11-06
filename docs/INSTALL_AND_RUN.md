@@ -1,6 +1,6 @@
 # AI Team V3 — Install And Run
 
-**Status:** Offline test suites and dashboard are verified with Electron `45.2.3`. Live provider commands are strictly human-gated and were not run during the 2026-11-05 repository refresh.
+**Status:** Offline test suites and dashboard are verified with Electron `45.2.3`. Live provider commands are strictly human-gated and were not run during the 2026-11-06 repository refresh.
 
 ## Requirements
 
@@ -50,7 +50,7 @@ Dashboard safety:
 - Keeps live open actions blocked behind both UI confirmation and `AI_TEAM_V3_CONFIRM_SAFE_SESSION`.
 - Uses Electron `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, `webSecurity: true`, and `webviewTag: false`.
 
-## Human-Gated Live Commands (Not Run During 2026-11-05 Refresh)
+## Human-Gated Live Commands (Not Run During 2026-11-06 Refresh)
 
 Live commands open real provider pages and must only be executed interactively by a human operator after confirming a safe logged-in session.
 
@@ -77,7 +77,7 @@ $env:AI_TEAM_V3_CONFIRM_SAFE_SESSION='1'
 npm run smoke:one-provider
 ```
 
-Never run `chatgpt` or `claude` live (both are hard-blocked by policy).
+Never run `chatgpt`, `claude` or `gemini` live (all three are hard-blocked by policy).
 
 ## Packaging Readiness
 

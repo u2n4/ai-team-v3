@@ -12,6 +12,9 @@ async function main() {
     userMessage: 'Smoke test the V3 core.',
     cycles: 1
   });
+  const expected = providers.length * 1;
+  const actual = report.transcript.filter(entry => entry.role === 'ai').length;
+  if (actual !== expected || report.diagnostics.length) throw new Error(`Offline smoke captured ${actual}/${expected} turns with ${report.diagnostics.length} diagnostics`);
   console.log(JSON.stringify({
     transcriptEntries: report.transcript.length,
     diagnostics: report.diagnostics.length,

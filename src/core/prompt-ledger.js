@@ -30,6 +30,7 @@ class PromptLedger {
   }
 
   commitDelivery(providerId, delivery) {
+    if (!Number.isSafeInteger(delivery.latestTurnId) || delivery.latestTurnId < 0) throw new TypeError('Invalid delivery turn id');
     const state = this.get(providerId);
     if (delivery.promptMode === 'briefing') {
       state.briefingDelivered = true;
@@ -52,6 +53,7 @@ class PromptLedger {
   }
 
   markDelivered(providerId, turnId) {
+    if (!Number.isSafeInteger(turnId) || turnId < 0) throw new TypeError('Invalid delivery turn id');
     const state = this.get(providerId);
     state.lastDeliveredTurnId = Math.max(state.lastDeliveredTurnId, turnId || 0);
   }

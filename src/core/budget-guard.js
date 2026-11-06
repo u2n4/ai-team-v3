@@ -29,7 +29,8 @@ class BudgetGuard {
   }
 
   limitFor(providerId) {
-    return this.limits[providerId] || 8000;
+    const limit = Object.hasOwn(this.limits, providerId) ? this.limits[providerId] : undefined;
+    return Number.isFinite(limit) && limit > 0 ? limit : 8000;
   }
 
   check({ providerId, cycleIndex, turnIndex, promptText, sections, includedTurnIds, transcriptChars }) {
@@ -45,7 +46,7 @@ class BudgetGuard {
       briefingChars,
       deltaChars,
       transcriptChars: transcriptChars || 0,
-      includedTurnIds: [...(includedTurnIds || [])],
+      includedTurnIds: [...(Array.isArray(includedTurnIds) ? includedTurnIds : [])],
       limitChars: this.limitFor(providerId)
     };
 
@@ -67,10 +68,10 @@ class BudgetGuard {
       briefingChars: meta.briefingChars || 0,
       deltaChars: meta.deltaChars || 0,
       transcriptChars: meta.transcriptChars || 0,
-      includedTurnIds: [...(meta.includedTurnIds || [])],
-      limitChars: providerCap
+      includedTurnIds: [...(Array.isArray(meta.includedTurnIds) ? meta.includedTurnIds : [])],
+      limitChars: Number.isFinite(providerCap) && providerCap > 0 ? providerCap : this.limitFor(meta.providerId)
     };
-    if (promptChars > providerCap) {
+    if (promptChars > metrics.limitChars) {
       throw new PromptOverBudgetError(metrics);
     }
     return metrics;

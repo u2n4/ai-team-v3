@@ -20,11 +20,12 @@ async function run() {
 
   fs.mkdirSync(require('node:path').dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify({ access_token: 'legacy-test-value' }), 'utf8');
-  assert.deepEqual(loadLocalStorageVault(providerId), { access_token: 'legacy-test-value' });
+  assert.equal(loadLocalStorageVault(providerId), null);
+  assert.deepEqual(loadLocalStorageVault(providerId, { allowLegacy: true }), { access_token: 'legacy-test-value' });
   clearLocalStorageVault(providerId);
   assert.equal(fs.existsSync(filePath), false);
 
-  console.log('PASS localStorage vault: Node fallback refuses new plaintext vaults and legacy vaults remain readable for migration');
+  console.log('PASS localStorage vault: Node fallback refuses new plaintext vaults and legacy plaintext is accessible only through explicit migration');
 }
 
 if (require.main === module) {

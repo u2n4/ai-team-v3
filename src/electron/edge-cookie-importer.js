@@ -17,12 +17,12 @@
  */
 
 const http = require('node:http');
-const net = require('node:net');
-const crypto = require('node:crypto');
 const path = require('node:path');
 const os = require('node:os');
 const fs = require('node:fs');
-const { spawn } = require('node:child_process');
+const { execFile } = require('node:child_process');
+const { withDeadline } = require('../core/deadline');
+const { redactSensitiveText } = require('../core/redact');
 const { LIVE_PROVIDER_ALLOWLIST } = require('../providers/provider-contract');
 
 // Map allowed provider ids -> the cookie domains that carry their session.
@@ -60,7 +60,7 @@ function providerForDomain(domain, allowedProviderIds) {
   const d = normalizeDomain(domain);
   for (const providerId of allowedProviderIds) {
     const domains = PROVIDER_COOKIE_DOMAINS[providerId] || [];
-    if (domains.some((pd) => d === pd || d.endsWith(`.${pd}`) || pd.endsWith(`.${d}`))) {
+    if (domains.some((pd) => d === pd || d.endsWith(`.${pd}`))) {
       return providerId;
     }
   }
@@ -80,6 +80,7 @@ function httpGetJson(url, timeoutMs = 2500) {
   return new Promise((resolve) => {
     const req = http.get(url, (res) => {
       let data = '';
+      res.on('error', () => resolve(null));
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
         try { resolve(JSON.parse(data)); } catch { resolve(null); }
@@ -92,53 +93,27 @@ function httpGetJson(url, timeoutMs = 2500) {
 
 async function isDebugPortAvailable() {
   const info = await httpGetJson(`http://127.0.0.1:${DEBUG_PORT}/json/version`);
-  return Boolean(info);
+  if (!info || !/Edg\/|Microsoft Edge\//i.test(String(info.Browser || '') + ' ' + String(info['User-Agent'] || ''))) return false;
+  if (process.platform !== 'win32') return false;
+  // Browser metadata alone can be spoofed. Verify the listening process image.
+  const executable = await new Promise(resolve => {
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+      '(Get-NetTCPConnection -LocalPort 9222 -State Listen -ErrorAction Stop | ForEach-Object { (Get-Process -Id $_.OwningProcess -ErrorAction Stop).Path } | Select-Object -Unique) -join [Environment]::NewLine'],
+      { encoding: 'utf8', windowsHide: true, timeout: 5000 }, (error, stdout) => resolve(error ? '' : stdout.trim()));
+  });
+  const expected = findEdgePath();
+  return Boolean(expected && executable.toLowerCase() === expected.toLowerCase());
 }
 
 async function startEdgeWithDebugging() {
-  const edgePath = findEdgePath();
-  if (!edgePath) {
-    throw new Error('Microsoft Edge not found.');
-  }
-  if (await isDebugPortAvailable()) {
-    return { started: false };
-  }
-  const userDataDir = path.join(os.homedir(), 'AppData', 'Local', 'Microsoft', 'Edge', 'User Data');
-  const args = [
-    `--remote-debugging-port=${DEBUG_PORT}`,
-    `--user-data-dir=${userDataDir}`,
-    '--no-first-run'
-  ];
-  const child = spawn(edgePath, args, { detached: true, stdio: 'ignore', windowsHide: false });
-  child.unref();
-
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (await isDebugPortAvailable()) return { started: true, child };
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  try { child.kill(); } catch {}
-  throw new Error('Timed out waiting for the Edge debug port. Close Edge manually and retry.');
+  if (await isDebugPortAvailable()) return { started: false };
+  throw new Error('No verified Edge debug session on port 9222. Default Edge profiles cannot be debugged. Open a dedicated debug profile manually; no existing browser was changed.');
 }
 
-async function stopStartedEdgeDebugging(debugSession) {
-  if (!debugSession || debugSession.started !== true) return false;
-  try {
-    const version = await httpGetJson(`http://127.0.0.1:${DEBUG_PORT}/json/version`, 1000);
-    if (version && version.webSocketDebuggerUrl) {
-      await Promise.race([
-        cdpCall(version.webSocketDebuggerUrl, 'Browser.close', {}, { timeoutMs: 2000, id: 99 }),
-        new Promise((resolve) => setTimeout(resolve, 2500))
-      ]);
-    }
-  } catch {}
-  try {
-    if (debugSession.child && debugSession.child.killed !== true) debugSession.child.kill();
-  } catch {}
-  return true;
-}
+async function stopStartedEdgeDebugging() { return false; }
 
 function importableProviderIds(ids) {
-  return (ids || Object.keys(PROVIDER_COOKIE_DOMAINS))
+  return (ids || [])
     .map((id) => String(id || '').trim().toLowerCase())
     .filter((id) => LIVE_PROVIDER_ALLOWLIST.includes(id) && PROVIDER_COOKIE_DOMAINS[id]);
 }
@@ -174,7 +149,7 @@ async function getAllowedCookiesViaCDP(allowedProviderIds) {
     if (!page) {
       throw new Error('No Edge browser or page endpoint available for CDP.');
     }
-    const response = await cdpGetAllCookies(page.webSocketDebuggerUrl, { method: 'Network.getAllCookies' });
+    const response = await cdpGetAllCookies(page.webSocketDebuggerUrl, { method: 'Storage.getCookies' });
     if (response.error) throw new Error(response.error.message || 'CDP error');
     cookies = (response.result && response.result.cookies) || [];
   }
@@ -203,11 +178,11 @@ async function getProviderLocalStorageFromEdge(providerId) {
     let host;
     try { host = new URL(p.url).hostname; } catch { return false; }
     if (isForbiddenDomain(host)) return false;
-    return domains.some((d) => host === d || host.endsWith(`.${d}`) || d.endsWith(`.${host}`));
+    return domains.some((d) => host === d || host.endsWith(`.${d}`));
   });
   if (!tab) return null;
   // Read localStorage as a JSON object via Runtime.evaluate (returnByValue).
-  const expr = '(() => { const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); o[k] = localStorage.getItem(k); } return JSON.stringify(o); })()';
+  const expr = `(() => { if (location.origin !== ${JSON.stringify(new URL(tab.url).origin)}) throw new Error('Provider origin changed'); const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); o[k] = localStorage.getItem(k); } return JSON.stringify(o); })()`;
   const res = await cdpCall(tab.webSocketDebuggerUrl, 'Runtime.evaluate', {
     expression: expr, returnByValue: true, awaitPromise: false
   });
@@ -219,178 +194,35 @@ async function getProviderLocalStorageFromEdge(providerId) {
 
 /** Minimal CDP-over-raw-WebSocket call. Defaults to Storage.getCookies (browser-wide). */
 function cdpGetAllCookies(wsUrl, { timeoutMs = 15000, method = 'Storage.getCookies' } = {}) {
+  return cdpCall(wsUrl, method, {}, { timeoutMs });
+}
+
+// Native WebSocket validates the handshake and framing; ignore unsolicited CDP
+// events and resolve only the response matching this command's request id.
+function cdpCall(wsUrl, method, params = {}, { timeoutMs = 15000, id = 1, webSocketFactory = url => new WebSocket(url) } = {}) {
+  const url = new URL(wsUrl);
+  if (url.protocol !== 'ws:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || Number(url.port) !== DEBUG_PORT || url.username || url.password) {
+    return Promise.reject(new Error('Untrusted CDP endpoint.'));
+  }
   return new Promise((resolve, reject) => {
+    const socket = webSocketFactory(url.href);
     let settled = false;
-    const finish = (fn, arg) => { if (!settled) { settled = true; try { socket.destroy(); } catch {} fn(arg); } };
-
-    const u = new URL(wsUrl);
-    const key = crypto.randomBytes(16).toString('base64');
-    const socket = net.connect({ host: u.hostname, port: Number(u.port) || 80 }, () => {
-      const req =
-        `GET ${u.pathname}${u.search} HTTP/1.1\r\n` +
-        `Host: ${u.host}\r\n` +
-        'Upgrade: websocket\r\n' +
-        'Connection: Upgrade\r\n' +
-        `Sec-WebSocket-Key: ${key}\r\n` +
-        'Sec-WebSocket-Version: 13\r\n\r\n';
-      socket.write(req);
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { socket.close(); } catch {}
+      if (error) reject(error); else resolve(value);
+    };
+    const timer = setTimeout(() => finish(new Error('CDP request timed out.')), timeoutMs);
+    socket.addEventListener('open', () => socket.send(JSON.stringify({ id, method, params })));
+    socket.addEventListener('error', () => finish(new Error('CDP WebSocket connection failed.')));
+    socket.addEventListener('close', () => finish(new Error('CDP WebSocket closed early.')));
+    socket.addEventListener('message', event => {
+      try { const response = JSON.parse(String(event.data)); if (response.id === id) finish(null, response); }
+      catch (error) { finish(error); }
     });
-
-    const timer = setTimeout(() => finish(reject, new Error('CDP cookie request timed out.')), timeoutMs);
-    socket.setTimeout(timeoutMs, () => finish(reject, new Error('CDP socket timed out.')));
-
-    let handshakeDone = false;
-    let buffer = Buffer.alloc(0);
-    const messageChunks = [];
-
-    socket.on('data', (chunk) => {
-      buffer = Buffer.concat([buffer, chunk]);
-      if (!handshakeDone) {
-        const sep = buffer.indexOf('\r\n\r\n');
-        if (sep === -1) return;
-        const header = buffer.slice(0, sep).toString('utf8');
-        if (!/101/.test(header.split('\r\n')[0])) {
-          clearTimeout(timer);
-          return finish(reject, new Error('WebSocket handshake failed.'));
-        }
-        handshakeDone = true;
-        buffer = buffer.slice(sep + 4);
-        // Send a single masked text frame with the CDP request.
-        socket.write(encodeTextFrame(JSON.stringify({ id: 1, method })));
-      }
-      // Parse server frames (unmasked) from the buffer.
-      let parsed;
-      while ((parsed = decodeFrame(buffer)) && parsed.complete) {
-        buffer = parsed.rest;
-        if (parsed.opcode === 0x8) { clearTimeout(timer); return finish(reject, new Error('WebSocket closed by Edge.')); }
-        if (parsed.opcode === 0x1 || parsed.opcode === 0x0) {
-          messageChunks.push(parsed.payload.toString('utf8'));
-          if (parsed.fin) {
-            try {
-              const json = JSON.parse(messageChunks.join(''));
-              clearTimeout(timer);
-              return finish(resolve, json);
-            } catch (err) {
-              clearTimeout(timer);
-              return finish(reject, err);
-            }
-          }
-        }
-      }
-    });
-    socket.on('error', (err) => { clearTimeout(timer); finish(reject, err); });
-    socket.on('close', () => { clearTimeout(timer); if (!settled) finish(reject, new Error('CDP socket closed early.')); });
   });
-}
-
-/**
- * General CDP-over-raw-WebSocket call: send {id, method, params}, resolve the matching
- * response. Reuses the same framing as cdpGetAllCookies. Used for Runtime.evaluate to
- * read a page's localStorage (providers like deepseek/z.ai store auth there, not cookies).
- */
-function cdpCall(wsUrl, method, params = {}, { timeoutMs = 15000, id = 1 } = {}) {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const finish = (fn, arg) => { if (!settled) { settled = true; try { socket.destroy(); } catch {} fn(arg); } };
-    const u = new URL(wsUrl);
-    const key = crypto.randomBytes(16).toString('base64');
-    const socket = net.connect({ host: u.hostname, port: Number(u.port) || 80 }, () => {
-      socket.write(
-        `GET ${u.pathname}${u.search} HTTP/1.1\r\n` +
-        `Host: ${u.host}\r\n` +
-        'Upgrade: websocket\r\nConnection: Upgrade\r\n' +
-        `Sec-WebSocket-Key: ${key}\r\nSec-WebSocket-Version: 13\r\n\r\n`
-      );
-    });
-    const timer = setTimeout(() => finish(reject, new Error('CDP call timed out.')), timeoutMs);
-    socket.setTimeout(timeoutMs, () => finish(reject, new Error('CDP socket timed out.')));
-    let handshakeDone = false;
-    let buffer = Buffer.alloc(0);
-    const chunks = [];
-    socket.on('data', (chunk) => {
-      buffer = Buffer.concat([buffer, chunk]);
-      if (!handshakeDone) {
-        const sep = buffer.indexOf('\r\n\r\n');
-        if (sep === -1) return;
-        if (!/101/.test(buffer.slice(0, sep).toString('utf8').split('\r\n')[0])) {
-          clearTimeout(timer);
-          return finish(reject, new Error('WebSocket handshake failed.'));
-        }
-        handshakeDone = true;
-        buffer = buffer.slice(sep + 4);
-        socket.write(encodeTextFrame(JSON.stringify({ id, method, params })));
-      }
-      let parsed;
-      while ((parsed = decodeFrame(buffer)) && parsed.complete) {
-        buffer = parsed.rest;
-        if (parsed.opcode === 0x8) { clearTimeout(timer); return finish(reject, new Error('WebSocket closed by Edge.')); }
-        if (parsed.opcode === 0x1 || parsed.opcode === 0x0) {
-          chunks.push(parsed.payload.toString('utf8'));
-          if (parsed.fin) {
-            let json;
-            try { json = JSON.parse(chunks.join('')); }
-            catch (err) { clearTimeout(timer); return finish(reject, err); }
-            // Skip CDP events / mismatched ids; wait for our response id.
-            if (json.id !== id) { chunks.length = 0; continue; }
-            clearTimeout(timer);
-            return finish(resolve, json);
-          }
-        }
-      }
-    });
-    socket.on('error', (err) => { clearTimeout(timer); finish(reject, err); });
-    socket.on('close', () => { clearTimeout(timer); if (!settled) finish(reject, new Error('CDP socket closed early.')); });
-  });
-}
-
-/** Encode a client->server masked text frame (RFC 6455). */
-function encodeTextFrame(text) {
-  const payload = Buffer.from(text, 'utf8');
-  const len = payload.length;
-  const mask = crypto.randomBytes(4);
-  let header;
-  if (len < 126) {
-    header = Buffer.from([0x81, 0x80 | len]);
-  } else if (len < 65536) {
-    header = Buffer.alloc(4);
-    header[0] = 0x81; header[1] = 0x80 | 126; header.writeUInt16BE(len, 2);
-  } else {
-    header = Buffer.alloc(10);
-    header[0] = 0x81; header[1] = 0x80 | 127; header.writeBigUInt64BE(BigInt(len), 2);
-  }
-  const masked = Buffer.alloc(len);
-  for (let i = 0; i < len; i += 1) masked[i] = payload[i] ^ mask[i % 4];
-  return Buffer.concat([header, mask, masked]);
-}
-
-/** Decode one server->client frame (server frames are unmasked). */
-function decodeFrame(buf) {
-  if (buf.length < 2) return { complete: false };
-  const fin = (buf[0] & 0x80) !== 0;
-  const opcode = buf[0] & 0x0f;
-  const masked = (buf[1] & 0x80) !== 0;
-  let len = buf[1] & 0x7f;
-  let offset = 2;
-  if (len === 126) {
-    if (buf.length < 4) return { complete: false };
-    len = buf.readUInt16BE(2); offset = 4;
-  } else if (len === 127) {
-    if (buf.length < 10) return { complete: false };
-    len = Number(buf.readBigUInt64BE(2)); offset = 10;
-  }
-  let maskKey;
-  if (masked) {
-    if (buf.length < offset + 4) return { complete: false };
-    maskKey = buf.slice(offset, offset + 4); offset += 4;
-  }
-  if (buf.length < offset + len) return { complete: false };
-  let payload = buf.slice(offset, offset + len);
-  if (masked && maskKey) {
-    const out = Buffer.alloc(len);
-    for (let i = 0; i < len; i += 1) out[i] = payload[i] ^ maskKey[i % 4];
-    payload = out;
-  }
-  return { complete: true, fin, opcode, payload, rest: buf.slice(offset + len) };
 }
 
 function toElectronCookie(cookie) {
@@ -463,7 +295,7 @@ async function importEdgeCookies({ sessionForProvider, allowedProviderIds, impor
         perProvider[providerId] += 1;
       } catch (error) {
         // Skip a cookie that the session rejects; never log its value.
-        if (process.env.AI_TEAM_V3_COOKIE_DEBUG === '1') console.error(`[cookie-debug] ${providerId} "${cookie.name}" (${cookie.domain}) rejected: ${error.message}`);
+        if (process.env.AI_TEAM_V3_COOKIE_DEBUG === '1') console.error(`[cookie-debug] ${providerId} "${cookie.name}" (${cookie.domain}) rejected: ${redactSensitiveText(error.message)}`);
       }
     }
 
@@ -480,10 +312,7 @@ async function importEdgeCookies({ sessionForProvider, allowedProviderIds, impor
       for (const providerId of providerIds) {
         try {
           if (dbg) console.error(`[storage-debug] ${providerId}: reading Edge localStorage...`);
-          const store = await Promise.race([
-            getProviderLocalStorageFromEdge(providerId),
-            new Promise((resolve) => setTimeout(() => resolve(null), 15000))
-          ]);
+          const store = await getProviderLocalStorageFromEdge(providerId);
           if (store && Object.keys(store).length > 0) {
             stores[providerId] = store;
             if (dbg) console.error(`[storage-debug] ${providerId}: read ${Object.keys(store).length} keys`);
@@ -499,10 +328,7 @@ async function importEdgeCookies({ sessionForProvider, allowedProviderIds, impor
       for (const [providerId, store] of Object.entries(stores)) {
         try {
           if (dbg) console.error(`[storage-debug] ${providerId}: writing ${Object.keys(store).length} keys to partition...`);
-          const written = await Promise.race([
-            Promise.resolve(importLocalStorageForProvider(providerId, store)).catch(() => 0),
-            new Promise((resolve) => setTimeout(() => resolve('__timeout__'), 30000))
-          ]);
+          const written = await withDeadline(() => importLocalStorageForProvider(providerId, store), 30000, 'VAULT_WRITE_TIMEOUT');
           perProviderStorage[providerId] = (written === '__timeout__' || !Number.isFinite(Number(written))) ? 0 : Number(written);
           if (dbg) console.error(`[storage-debug] ${providerId}: wrote ${perProviderStorage[providerId]} keys${written === '__timeout__' ? ' (TIMED OUT)' : ''}`);
         } catch (error) {
@@ -520,7 +346,7 @@ async function importEdgeCookies({ sessionForProvider, allowedProviderIds, impor
     success: total > 0 || storageTotal > 0,
     perProvider,
     perProviderStorage,
-    message: total > 0
+    message: total > 0 || storageTotal > 0
       ? `Imported ${total} cookies${storageTotal > 0 ? ` + ${storageTotal} localStorage keys` : ''} for allowed providers.`
       : 'No cookies found for the allowed providers. Make sure you are logged in to them in Edge.'
   };

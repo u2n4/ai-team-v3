@@ -95,6 +95,7 @@ async function main() {
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;
+    if (process.versions.electron) require('electron').app.exit(1);
     return;
   }
 
@@ -111,8 +112,9 @@ async function main() {
   // of serially, so N providers cost ~one page-load instead of N. Each provider still runs
   // in its own visible host window so trusted input lands correctly.
   const windows = [];
+  try {
   const t0 = Date.now();
-  const built = await Promise.all(roster.map(async (providerId) => {
+  const built = await Promise.allSettled(roster.map(async (providerId) => {
     assertProviderLiveAllowed(providerId, { policy: sessionPolicy });
     const definition = DEFAULT_PROVIDER_DEFINITIONS[providerId];
     const hostWindow = new BrowserWindow({
@@ -131,7 +133,9 @@ async function main() {
     return new WebviewProviderAdapter({ definition, sendController, lifecycleMonitor, domCapture });
   }));
   // Preserve the roster order for deterministic turn-taking.
-  const providers = built;
+  const providers = built.filter(r => r.status === 'fulfilled').map(r => r.value);
+  for (let i = 0; i < built.length; i++) if (built[i].status === 'rejected') writeStatus(`Provider ${roster[i]} failed to open.`);
+  if (providers.length < 2) throw new Error('Fewer than two providers opened.');
   writeStatus(`All ${providers.length} providers ready in ${Math.round((Date.now() - t0) / 1000)}s (parallel open).`);
 
   // Share a transcript store so we can print each AI turn LIVE as it lands, instead of
@@ -171,9 +175,11 @@ async function main() {
   }
   writeStatus(`Discussion complete: ${aiTurns.length} AI turns, ${report.diagnostics.length} diagnostics.`);
 
-  for (const win of windows) { try { win.destroy(); } catch {} }
   process.exitCode = aiTurns.length > 0 ? 0 : 1;
-  app.quit();
+  } finally {
+    for (const win of windows) { try { win.destroy(); } catch {} }
+    app.quit();
+  }
 }
 
 if (process.versions && process.versions.electron) {

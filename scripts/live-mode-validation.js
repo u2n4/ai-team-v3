@@ -59,9 +59,9 @@ function readDiscussionEvidence({
 } = {}) {
   const selectorReport = readText(selectorReportPath);
   const smokeReport = readText(smokeReportPath);
-  const doctorReady = /Status:\s*READY_FOR_ONE_PROVIDER_SMOKE/i.test(selectorReport);
+  const doctorReady = /^[ \t]*Status:[ \t]*READY_FOR_ONE_PROVIDER_SMOKE[ \t]*\r?$/im.test(selectorReport);
   const challenge = /PROVIDER_CHALLENGE|PROVIDER_LIMIT|PROVIDER_LOGIN_WALL|PROVIDER_PAID_WALL/i.exec(selectorReport);
-  const smokePass = /Status:\s*PASS/i.test(smokeReport);
+  const smokePass = /^[ \t]*Status:[ \t]*PASS[ \t]*\r?$/im.test(smokeReport);
   if (!doctorReady) {
     return {
       ok: false,
@@ -148,7 +148,7 @@ function validateLiveModeGate({
 
   const selectorReport = readText(selectorReportPath);
   const smokeReport = readText(smokeReportPath);
-  if (!/Status:\s*READY_FOR_ONE_PROVIDER_SMOKE/i.test(selectorReport)) {
+  if (!/^[ \t]*Status:[ \t]*READY_FOR_ONE_PROVIDER_SMOKE[ \t]*\r?$/im.test(selectorReport)) {
     const challenge = /PROVIDER_CHALLENGE|PROVIDER_LIMIT|PROVIDER_LOGIN_WALL|PROVIDER_PAID_WALL/i.exec(selectorReport);
     return {
       ok: false,
@@ -160,7 +160,7 @@ function validateLiveModeGate({
         : 'Selector Doctor report does not prove READY_FOR_ONE_PROVIDER_SMOKE.'
     };
   }
-  if (!/Status:\s*PASS/i.test(smokeReport)) {
+  if (!/^[ \t]*Status:[ \t]*PASS[ \t]*\r?$/im.test(smokeReport)) {
     return {
       ok: false,
       exitCode: 1,

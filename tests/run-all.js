@@ -1,6 +1,7 @@
 'use strict';
 
 const tests = [
+  require('./final-round.test'),
   require('./core/smoke.test'),
   require('./core/api-contracts.test'),
   require('./core/approval-gate-manager.test'),
@@ -46,16 +47,19 @@ const tests = [
 ];
 
 async function run() {
+  const failures = [];
   for (const test of tests) {
-    await test();
+    try { await test(); } catch (error) { failures.push(error); console.error(error); }
   }
+  if (failures.length) throw new AggregateError(failures, `${failures.length}/${tests.length} offline suites failed`);
+  console.log(`Offline suites: ${tests.length}/${tests.length} passed`);
   console.log('PASS test:v3-all');
 }
 
 if (require.main === module) {
   run().catch((error) => {
     console.error(error);
-    process.exit(1);
+    process.exitCode = 1;
   });
 }
 

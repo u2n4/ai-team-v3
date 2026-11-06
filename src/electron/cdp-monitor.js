@@ -12,6 +12,10 @@ function redactUrl(value) {
   try {
     const url = new URL(value);
     url.search = url.search ? '?redacted=1' : '';
+    url.hash = '';
+    url.username = '';
+    url.password = '';
+    if (!['https:', 'http:'].includes(url.protocol)) return '[redacted-url]';
     return url.toString();
   } catch (_error) {
     return '[redacted-url]';
@@ -81,13 +85,22 @@ function redactObject(value) {
 }
 
 class CdpMonitor {
-  constructor({ webContents, traceStore, providerId }) {
+  constructor({ webContents, traceStore, providerId, maxEvents = 2000 }) {
     this.webContents = webContents;
     this.traceStore = traceStore;
     this.providerId = providerId;
     this.enabled = false;
     this.events = [];
+    this.maxEvents = maxEvents;
+    this.attachedHere = false;
     this.listener = (_event, method, params) => this.handleEvent(method, params);
+    this.detachListener = () => {
+      this.webContents.debugger.off('message', this.listener);
+      this.webContents.debugger.off('detach', this.detachListener);
+      this.enabled = false;
+      this.attachedHere = false;
+      if (this.traceStore) this.traceStore.event('CDP_MONITOR_DETACHED', { providerId: this.providerId });
+    };
   }
 
   async start() {
@@ -96,21 +109,27 @@ class CdpMonitor {
     }
     if (!this.webContents.debugger.isAttached()) {
       this.webContents.debugger.attach('1.3');
+      this.attachedHere = true;
     }
     this.webContents.debugger.on('message', this.listener);
-    await this.webContents.debugger.sendCommand('Network.enable');
-    this.enabled = true;
+    this.webContents.debugger.on('detach', this.detachListener);
+    try {
+      await this.webContents.debugger.sendCommand('Network.enable');
+      this.enabled = true;
+    } catch (error) {
+      await this.stop();
+      throw error;
+    }
   }
 
   async stop() {
-    if (!this.enabled) {
-      return;
-    }
     this.webContents.debugger.off('message', this.listener);
-    if (this.webContents.debugger.isAttached()) {
+    this.webContents.debugger.off('detach', this.detachListener);
+    if (this.attachedHere && this.webContents.debugger.isAttached()) {
       this.webContents.debugger.detach();
     }
     this.enabled = false;
+    this.attachedHere = false;
   }
 
   handleEvent(method, params) {
@@ -124,6 +143,7 @@ class CdpMonitor {
       createdAt: new Date().toISOString()
     };
     this.events.push(entry);
+    if (this.events.length > this.maxEvents) this.events.shift();
     if (this.traceStore) {
       this.traceStore.event('CDP_NETWORK_EVENT', entry);
     }

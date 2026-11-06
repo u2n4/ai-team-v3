@@ -13,7 +13,7 @@
 //   $env:AI_TEAM_V3_HEALTH_SEND='1'; npm run health:check   # also verifies send+response
 
 const { DEFAULT_PROVIDER_DEFINITIONS } = require('../src/providers/webview-provider-adapter');
-const { loadProviderSessionPolicy, resolveProviderSessionPolicy, resolveProviderPartition } = require('../src/providers/provider-session-policy');
+const { loadProviderSessionPolicy, resolveProviderSessionPolicy, resolveProviderPartition, assertProviderLiveAllowed } = require('../src/providers/provider-session-policy');
 const { classifyProviderHealth, isBrokenVerdict } = require('../src/core/provider-health-classifier');
 const { classifyModel, describeTier } = require('../src/core/model-classifier');
 const { SendController } = require('../src/electron/send-controller');
@@ -43,13 +43,14 @@ async function gatherSignals(electron, providerId, doSend) {
   const { BrowserWindow, session } = electron;
   const def = DEFAULT_PROVIDER_DEFINITIONS[providerId];
   const policy = loadProviderSessionPolicy();
+  assertProviderLiveAllowed(providerId, { policy });
   const partition = resolveProviderPartition(def, providerId, { policy }).partition || def.partition;
   const win = new BrowserWindow({ width: 1100, height: 800, show: true,
     webPreferences: { session: session.fromPartition(partition), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, backgroundThrottling: false } });
   const signals = { composerFound: false, challengeText: false, loginText: false, limitText: false, sendVerified: null, responseStarted: null, sendMs: null };
   try {
     const t0 = Date.now();
-    await win.loadURL(def.url).catch(() => {});
+    await win.loadURL(def.url);
     const wc = win.webContents;
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
@@ -121,6 +122,7 @@ async function main() {
   if (process.env[LIVE_ENV] !== '1' || process.env[CONFIRM_ENV] !== '1') {
     console.error(`Refused. Set ${LIVE_ENV}=1 and ${CONFIRM_ENV}=1 to run a live health check.`);
     process.exitCode = 1;
+    if (process.versions.electron) require('electron').app.exit(1);
     return;
   }
   const electron = require('electron');
@@ -139,7 +141,7 @@ async function main() {
   const only = rest.find((a) => a && !a.startsWith('-'));
   const providers = only ? only.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean) : allowedProviders(policy);
 
-  process.on('unhandledRejection', () => {});
+
 
   // ELECTRON WORKER MODE: check exactly ONE provider and print one line, then quit. The Node
   // orchestrator (below) spawns one electron worker per provider, so a crash on one heavy
@@ -155,6 +157,7 @@ async function main() {
       health = { verdict: 'UNKNOWN', broken: true, reason: 'health probe errored: ' + redactSensitiveText(error.message) };
     }
     const flag = isBrokenVerdict(health.verdict) ? 'BROKEN' : 'OK';
+    if (flag === 'BROKEN') process.exitCode = 1;
     const modelInfo = signals.model ? `model="${signals.model}" [${signals.modelTier}]` : 'model=?';
     console.log(`[health] ${(id + '          ').slice(0, 11)} ${(health.verdict + '              ').slice(0, 16)} ${flag}  pageReady=${signals.pageReadyMs || '?'}ms send=${signals.sendMs != null ? signals.sendMs + 'ms' : '-'}  ${modelInfo}  | ${health.reason}`);
   }
@@ -178,8 +181,8 @@ async function orchestrate() {
     ['--disable-gpu', '--disable-gpu-compositing', '--disable-software-rasterizer', __filename, ...passthrough],
     { env: { ...process.env, AI_TEAM_V3_HEALTH_WORKER: '1' }, stdio: 'inherit' }
   );
-  await new Promise((resolve) => { child.on('exit', resolve); child.on('error', () => resolve()); });
-  process.exit(0);
+  const code = await new Promise((resolve) => { child.on('exit', (code) => resolve(code ?? 1)); child.on('error', () => resolve(1)); });
+  process.exitCode = code;
 }
 
 if (process.versions && process.versions.electron) {

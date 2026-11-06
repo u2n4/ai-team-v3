@@ -88,17 +88,17 @@ const PARTIAL_PATTERNS = [
 ];
 
 const SECRET_LEAK_PATTERNS = [
-  /\bauthorization\s*[:=]\s*bearer\s+[a-z0-9._~+/=-]+/i,
-  /\b(api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|session[_-]?id|client[_-]?secret)\s*[:=]\s*['"]?[a-z0-9._~+/=-]{8,}/i,
-  /\bsk-[a-z0-9]{12,}/i,
+  /\bauthorization["']?\s*[:=]\s*bearer\s+[a-z0-9._~+/=-]+/i,
+  /\b(api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|session[_-]?id|client[_-]?secret)["']?\s*[:=]\s*['"]?[a-z0-9._~+/=-]{8,}/i,
+  /\bsk-[a-z0-9_-]{12,}/i,
   /-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----/i
 ];
 
 const UNSAFE_INSTRUCTION_PATTERNS = [
-  /\bbypass\b.*\b(captcha|cloudflare|login|rate limit|paywall|paid wall)\b/i,
-  /\bexport\b.*\b(cookies|tokens|session storage|local storage)\b/i,
-  /\bcopy\b.*\b(cookies|tokens|session ids?|authorization headers?)\b/i,
-  /\bdisable\b.*\b(transcript firewall|quota guard|budget guard|approval gate)\b/i
+  /\bbypass\b[\s\S]*\b(captcha|cloudflare|login|rate limit|paywall|paid wall)\b/i,
+  /\bexport\b[\s\S]*\b(cookies|tokens|session storage|local storage)\b/i,
+  /\bcopy\b[\s\S]*\b(cookies|tokens|session ids?|authorization headers?)\b/i,
+  /\bdisable\b[\s\S]*\b(transcript firewall|quota guard|budget guard|approval gate)\b/i
 ];
 
 function compactText(text) {

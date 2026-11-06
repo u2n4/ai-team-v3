@@ -35,7 +35,8 @@ async function benchOne({ providerCount, cycles }) {
   });
   const ms = hrMs(start);
   const aiTurns = report.transcript.filter((e) => e.role === 'ai').length;
-  return { providerCount, cycles, ms, aiTurns, msPerTurn: aiTurns ? ms / aiTurns : 0 };
+  if (aiTurns !== providerCount * cycles) throw new Error(`Benchmark captured ${aiTurns}/${providerCount * cycles} expected turns`);
+  return { providerCount, cycles, ms, aiTurns, msPerTurn: ms / aiTurns };
 }
 
 async function main() {
@@ -60,12 +61,12 @@ async function main() {
     );
   }
   const worst = rows.reduce((a, b) => (b.msPerTurn > a.msPerTurn ? b : a), rows[0]);
-  console.log(`\nPASS benchmark: ${rows.length} scenarios, max ${worst.msPerTurn.toFixed(2)}ms/turn (${worst.providerCount}p×${worst.cycles}c).`);
+  console.log(`\nBenchmark: ${rows.length} scenarios, max ${worst.msPerTurn.toFixed(2)}ms/turn (${worst.providerCount}p×${worst.cycles}c).`);
   // Guardrail: orchestration overhead per turn should stay well under 50ms offline.
   if (worst.msPerTurn > 50) {
     console.error(`WARN: per-turn overhead ${worst.msPerTurn.toFixed(2)}ms exceeds 50ms budget.`);
     process.exitCode = 1;
-  }
+  } else { console.log('PASS benchmark'); }
 }
 
 if (require.main === module) {

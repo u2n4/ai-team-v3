@@ -20,17 +20,17 @@ async function run() {
   assert.equal(kimi.v2SessionReuseAllowed, true);
   assert.equal(kimi.partition, 'persist:ai-team-shared');
 
-  // 2026-06-21 (D20): only ChatGPT and Claude remain forbidden before page open.
-  for (const providerId of ['chatgpt', 'claude']) {
+  // 2026-06-21 (D20): ChatGPT, Claude and Gemini remain forbidden before page open.
+  for (const providerId of ['chatgpt', 'claude', 'gemini']) {
     const policy = resolveProviderSessionPolicy(providerId);
     assert.equal(policy.status, 'BLOCKED_PROVIDER_FORBIDDEN');
     assert.equal(policy.v2SessionReuseAllowed, false);
-    assert.throws(() => assertProviderLiveAllowed(providerId), /ChatGPT\/Claude live is disabled/);
+    assert.throws(() => assertProviderLiveAllowed(providerId), /live is disabled/);
   }
 
   // All other providers are now live-allowed (still human-gated). They must resolve to
   // READY_FOR_PROVIDER_DOCTOR and not throw the forbidden error.
-  for (const providerId of ['deepseek', 'perplexity', 'gemini', 'grok', 'zai', 'meta', 'manus']) {
+  for (const providerId of ['deepseek', 'perplexity', 'grok', 'zai', 'meta', 'manus']) {
     const policy = resolveProviderSessionPolicy(providerId);
     assert.equal(policy.status, 'READY_FOR_PROVIDER_DOCTOR');
     assert.equal(policy.liveAllowed, true);
@@ -49,7 +49,7 @@ async function run() {
   assert.equal(discovery.secretsRead, false);
   assert.equal(discovery.references.some((entry) => entry.partition === 'persist:ai-team-shared'), true);
 
-  console.log('PASS provider session policy: qwen/kimi V2 partition reuse is allowed; all providers live-allowed except ChatGPT/Claude which are blocked before open');
+  console.log('PASS provider session policy: qwen/kimi V2 partition reuse is allowed; all providers live-allowed except ChatGPT/Claude/Gemini which are blocked before open');
 }
 
 if (require.main === module) {
