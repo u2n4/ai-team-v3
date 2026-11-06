@@ -41,7 +41,7 @@ function redactSensitiveText(value) {
   }
   return text.replace(/\bbearer\s+[a-z0-9._~+/=-]+/gi, 'Bearer [REDACTED]')
     .replace(/\bsk-[a-z0-9_-]{12,}/gi, '[REDACTED]')
-    .replace(/(?<![A-Z0-9._%+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED]');
+    .replace(/[A-Z0-9._%+-]{1,64}@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED]');
 }
 
 function redactSensitiveValue(value) {
