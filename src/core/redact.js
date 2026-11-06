@@ -6,13 +6,18 @@
 // store raw prompt/response bodies; redact what little free text must be kept.
 const SECRET_KEY = /cookie|authorization|token|secret|api[_-]?key|session(?:[_-]?id)?|account[_-]?id|email/i;
 const SECRET_PATTERNS = [
-  /(\b(?:authorization|set-cookie|cookie)\s*[:=]\s*)([^"'\r\n][^\r\n]*)/gi,
-  /(["']?(?:authorization|set-cookie|cookie)["']?\s*[:=]\s*)((?:"(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*')(?:[ \t]*[^\s,}\]][^\r\n]*|[ \t]*,(?![ \t]*["'{[\r\n])[^\r\n]*)?|[^\r\n]+)/gi,
+  /(["']?\b(?:authorization|set-cookie|cookie)["']?[ \t]*[:=][ \t]*)([^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*)/gi,
   /(["']?(?:(?:access|refresh|id)[_-]?)?token["']?\s*[:=]\s*|["']?(?:secret|client[_-]?secret|api[_-]?key|session(?:[_-]?id)?|account[_-]?id|email)["']?\s*[:=]\s*)("(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'|[^\s,;&}\]\r\n]+)/gi
 ];
 
 function redactSensitiveText(value) {
   let text = String(value ?? '');
+  if (/^\s*[[{]/.test(text)) {
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === 'object') return JSON.stringify(redactSensitiveValue(parsed));
+    } catch { /* Not JSON: redact it as text. */ }
+  }
   text = text.replace(/https?:\/\/[^\s<>"']+/gi, (raw) => {
     try {
       const url = new URL(raw);
