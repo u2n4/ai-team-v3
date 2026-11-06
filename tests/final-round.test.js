@@ -40,6 +40,9 @@ async function run() {
   assert.equal(redactSensitiveText('Cookie:\r\nX.Trace: public-id').includes('X.Trace: public-id'), true);
   assert.equal(redactSensitiveText('[INFO] provider used1234 finished'), '[INFO] provider used1234 finished');
   assert.equal(redactSensitiveText('x'.repeat(200000)).length, 200000);
+  const repeatedKeywordStart = Date.now();
+  redactSensitiveText(JSON.stringify({ message: 'cookie'.repeat(20000) }));
+  assert.ok(Date.now() - repeatedKeywordStart < 1000);
   assert.equal(redactSensitiveText('['.repeat(10000) + '{"\\u0063ookie":"CANARY"}' + ']'.repeat(10000)).includes('CANARY'), false);
   assert.equal(redactSensitiveText('{"cookie":"a","theme":"dark"}'), '{"cookie":"[REDACTED]","theme":"dark"}');
   for (const raw of [
@@ -50,6 +53,8 @@ async function run() {
     'Cookie:"a"; sid=CANARY',
     'Cookie:"a" sid=CANARY',
     'a@b.com-CANARY@example.com',
+    'note {"X-Cookie\\u002eInfo":"CANARY"}',
+    '{"X-Cookie\\u002eInfo":"CANARY",',
     'X-Api-Key: first, CANARY',
     'X-Cookie-Info: CANARY',
     '{"\\u0063ookie":"CANARY",',
