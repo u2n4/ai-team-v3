@@ -33,8 +33,10 @@ const { DomCapture } = require('../src/electron/dom-capture');
 const { classifyProviderHealth } = require('../src/core/provider-health-classifier');
 
 async function run() {
-  const { redactSensitiveText } = require('../src/core/redact');
   assert.equal(redactSensitiveText('Cookie: theme=dark; sid=CANARY'), 'Cookie: [REDACTED]');
+  assert.equal(redactSensitiveText('{"message":"Cookie: a","ok":1}'), '{"message":"Cookie: [REDACTED]","ok":1}');
+  assert.equal(redactSensitiveText('{"cookie":["a","sid=CANARY"],"ok":1}'), '{"cookie":"[REDACTED]","ok":1}');
+  assert.equal(redactSensitiveText('Cookie:\r\nX-Request-Id: public-id').includes('X-Request-Id: public-id'), true);
   assert.equal(redactSensitiveText('{"cookie":"a","theme":"dark"}'), '{"cookie":"[REDACTED]","theme":"dark"}');
   for (const raw of [
     'Cookie: https://[x sid=CANARY',
@@ -43,6 +45,8 @@ async function run() {
     'Cookie: [REDACTED]; sid=CANARY',
     'Cookie:"a"; sid=CANARY',
     'Cookie:"a" sid=CANARY',
+    'Cookie:"theme=dark", "sid=CANARY"',
+    'Authorization: Digest username="a",\r\n response="CANARY"',
     'Cookie:"a; sid=CANARY',
     '"Cookie": a=1; sid=CANARY',
     '{"cookie":"a\\"b; sid=CANARY"}',
